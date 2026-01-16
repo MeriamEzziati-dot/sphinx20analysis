@@ -1,7 +1,7 @@
 """
 SPHINX20 LyC Escape Fraction Analysis Package
 =============================================
-A package for analyzing Lyman Continuum (LyC) escape fractions and their
+A package for analyzing Lyman Continuum  escape fractions and their
 correlations with galaxy properties in the SPHINX20 data release.
 Date: Jan 2026
 Author: Meriam Ezziati

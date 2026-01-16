@@ -1,7 +1,7 @@
 Installation
 ============
 
-1. Clone the repository from `Gitlab <https://git.ias.u-psud.fr/lmaurin/mer_analysis>`_:
-   `git clone git@git.ias.u-psud.fr:lmaurin/mer_analysis.git`
+1. Clone the repository from `Github <https://github.com/MeriamEzziati-dot/sphinx20analysis/tree/master/sphinx_analysis>`_:
+   `git clone github.com:MeriamEzziati-dot/sphinx20analysis/tree/master/sphinx_analysis`
 2. Create/activate a virtual environnement.
-3. Use pip to install it: `pip install /path/to/MER_analysis/.`
+3. Use pip to install it: `pip install /path/to/sphinx_analysis/.`

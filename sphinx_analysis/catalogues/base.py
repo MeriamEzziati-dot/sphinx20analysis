@@ -26,6 +26,7 @@ class BaseCatalogue(ABC):
         data : pd.DataFrame, optional
             DataFrame containing catalogue data
         """
+        #TODO: make it include all catalogues file formats
         if filepath is not None:
             self.df = pd.read_csv(filepath)
             self.filepath = filepath

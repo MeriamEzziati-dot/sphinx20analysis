@@ -24,7 +24,6 @@ from sphinx_analysis.io import save_column_names, export_summary
 DATA_PATH = '/home/mezziati/Documents/IAP/SPHINX20/data/'
 OUTPUT_PATH = '/home/mezziati/Documents/IAP/SPHINX20/sphinx_analysis/outputs/'
 
-
 def main():
     """Main analysis pipeline using the new package structure."""
 
@@ -36,6 +35,7 @@ def main():
     print("\n1. Loading catalogues...")
     sim_cat = SimulationCatalogue(DATA_PATH + 'all_basic_data.csv')
     obs_cat = ObservationCatalogue(DATA_PATH + 'flury.csv')
+    obs_old = ObservationCatalogue(DATA_PATH + 'previous_Lyc_measurements.csv')
 
     # 2. Create analyzer
     print("\n2. Creating analyzer...")
