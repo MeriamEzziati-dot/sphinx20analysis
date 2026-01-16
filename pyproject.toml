@@ -1,7 +1,7 @@
 [project]
 name = "sphinx-analysis"
 version = "0.1.0"
-description = "Add your description here"
+description = "A simple package to analyse the SPHINX 20 DR tailored for the escape fraction study"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

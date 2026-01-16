@@ -1,0 +1,24 @@
+SPHINX20 LyC Escape Fraction Analysis Summary
+============================================================
+
+SIMULATION DATA
+------------------------------------------------------------
+Number of galaxies: 1380
+Redshifts: [np.float64(4.64), np.float64(5.0), np.float64(6.0), np.float64(7.0), np.float64(8.0), np.float64(9.0), np.float64(10.0)]
+
+
+OBSERVATION DATA
+------------------------------------------------------------
+Number of objects: 89
+
+
+CORRELATIONS
+------------------------------------------------------------
+                       Property  Correlation       P-value Significant  N_points
+0         Stellar Mass (log M☉)    -0.167154  4.160338e-10         Yes      1380
+1            Halo Mass (log M☉)    -0.074523  5.610131e-03         Yes      1380
+2              SFR (10 Myr avg)    -0.153966  8.993316e-09         Yes      1380
+3     Ionizing Luminosity (log)    -0.303029  1.951862e-29         Yes      1320
+4      Gas Metallicity (log Z☉)    -0.230236  4.645184e-18         Yes      1380
+5  Stellar Metallicity (log Z☉)    -0.329615  2.489834e-36         Yes      1380
+6        Mean Stellar Age (Myr)    -0.140277  1.674858e-07         Yes      1380
