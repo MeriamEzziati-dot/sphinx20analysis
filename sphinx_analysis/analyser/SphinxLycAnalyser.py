@@ -903,8 +903,8 @@ class SPHINXLyCAnalyzer:
 
     def plot_ew_hbeta_vs_mass(self, figsize=(14, 6), save_path=None):
         """
-        Plot Hβ equivalent width vs stellar mass.
-        High EW indicates young, bursty SF → high f_esc.
+        Plot Hbeta equivalent width vs stellar mass.
+        High EW indicates young, bursty SF => high f_esc.
         """
         fig, axes = plt.subplots(1, 2, figsize=figsize)
 
