@@ -1,5 +1,5 @@
 """
-Observation catalogue class for observational data (e.g., Flury et al.).
+Observation catalogue class for observational data (e.g., Flury+25, Fletcher+19).
 """
 
 import numpy as np
