@@ -815,11 +815,20 @@ class SPHINXLyCAnalyzer:
                     alpha=0.4, s=30, label='SPHINX20', c=self.df['redshift'][mask],cmap='cividis')
         mask_obs = (self.observations['f_esc(LyC)-Hbeta'].notna() & mask01 &
                     self.observations['xi-ion'].notna())
+
+        mask_fletcher = (fletcher_data['f_esc'].notna()  & fletcher_data['log10(Xi-ion)'].notna())
+        fletcher_fesc = np.log10(fletcher_data.loc[mask_fletcher, 'f_esc'])
         obs_fesc = np.log10(self.observations.loc[mask_obs, 'f_esc(LyC)-Hbeta'])
+
         obs_xi = self.observations.loc[mask_obs, 'xi-ion']
+        fletcher_xi = np.log10(10**(fletcher_data.loc[mask_fletcher, 'log10(Xi-ion)'])/(1-fletcher_fesc))
+
         ax4.scatter(obs_xi, obs_fesc,
                     alpha=0.7, s=100, label='LzLCS',
                     color='red', marker='s', edgecolors='black', linewidth=0.5)
+        ax4.scatter(fletcher_xi, fletcher_fesc,
+                    alpha=0.7, s=200, label='LACES',
+                    color='green', marker='*', edgecolors='black', linewidth=0.5)
         ax4.set_xlabel('log₁₀(ξ_ion / Hz erg)', fontsize=11)
         ax4.set_ylabel('log₁₀(f_esc)', fontsize=11)
         ax4.set_title('ξ_ion vs f_esc', fontsize=12, fontweight='bold')
