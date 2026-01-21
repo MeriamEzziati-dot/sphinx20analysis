@@ -40,7 +40,7 @@ class SPHINXLyCAnalyzer:
 
         # Convert log values to linear
         self.df['f_esc_linear'] = 10 ** self.df['f_esc']
-        self.df['stellar_mass_linear'] = 10 ** self.df['stellar_mass']
+        self.df['stellar_mass_linear'] = self.df['stellar_mass']
         self.df['ionizing_luminosity_linear'] = 10 ** self.df['ionizing_luminosity']
         # Same for the control sample
         # self.control['A_SFR_l'] = 10 ** self.control['A_SFR']
@@ -187,7 +187,7 @@ class SPHINXLyCAnalyzer:
         ax.axvline(self.df['f_esc_linear'].mean() * 100,
                    color='red', linestyle='--', label='Mean')
         ax.axvline(self.df['f_esc_linear'].median() * 100,
-                   color='orange', linestyle='--', label='Median')
+                   color='black', linestyle='--', label='Median')
         ax.legend()
 
         # 2. f_esc vs Stellar Mass
@@ -690,14 +690,18 @@ class SPHINXLyCAnalyzer:
         print(fesc)
         fig = plt.figure(figsize=figsize)
         gs = fig.add_gridspec(2, 2, hspace=0.3, wspace=0.3)
-
+        mask = 10 ** (self.df['f_esc']) > 0.1
+        mask01 = self.observations['f_esc(LyC)-Hbeta']>0.1
         # 1. Mass vs f_esc
         ax1 = fig.add_subplot(gs[0, 0])
-        ax1.scatter(self.df['stellar_mass'], self.df['f_esc'],
-                    alpha=0.4, s=30, label='SPHINX20', color='blue')
-
-
-        mask_obs = (self.observations['f_esc(LyC)-Hbeta'].notna() &
+        scatter1 = ax1.scatter(
+            self.df['stellar_mass'][mask],
+            self.df['f_esc'][mask],
+            alpha=0.4, s=30, label='SPHINX20',
+            c=self.df['redshift'][mask],  # Don't forget to mask the color too!
+            cmap='cividis'
+        )
+        mask_obs = (self.observations['f_esc(LyC)-Hbeta'].notna() & mask01 &
                     self.observations['log10(Mstar)'].notna())
         mask_fletcher = (fletcher_data['f_esc'].notna() &
                     fletcher_data['M_star'].notna())
@@ -711,9 +715,9 @@ class SPHINXLyCAnalyzer:
         ax1.scatter(obs_mass, obs_fesc,
                     alpha=0.7, s=100, label='LzLCS',
                     color='red', marker='s', edgecolors='black', linewidth=0.5)
-        ax1.scatter(fletcher_mass, fletcher_fesc,
-                    alpha=0.7, s=100, label='LACES',
-                    color='green', marker='s', edgecolors='black', linewidth=0.5)
+        ax1.scatter((fletcher_mass), fletcher_fesc,
+                    alpha=0.7, s=200, label='LACES',
+                    color='green', marker='*', edgecolors='black', linewidth=0.5)
         ax1.set_xlabel('log₁₀(M* / Msol)', fontsize=11)
         ax1.set_ylabel('log₁₀(f_esc)', fontsize=11)
         ax1.set_title('Stellar Mass vs f_esc', fontsize=12, fontweight='bold')
@@ -722,14 +726,14 @@ class SPHINXLyCAnalyzer:
 
         # 2. SFR vs f_esc
         ax2 = fig.add_subplot(gs[0, 1])
-        ax2.scatter(self.df['sfr_100'], self.df['f_esc'],
-                    alpha=0.4, s=30, label='SPHINX20', color='blue')
+        scatter2=ax2.scatter(self.df['sfr_100'][mask], self.df['f_esc'][mask],
+                    alpha=0.4, s=30, label='SPHINX20', c=self.df['redshift'][mask],cmap='cividis')
 
         # Observation masks
         mask_fletcher = (fletcher_data['f_esc'].notna() &
                     fletcher_data['A_SFR'].notna())
 
-        mask_obs = (self.observations['f_esc(LyC)-Hbeta'].notna() &
+        mask_obs = (self.observations['f_esc(LyC)-Hbeta'].notna() & mask01 &
                     self.observations['log10(SFR)-UV'].notna())
         obs_fesc = np.log10(self.observations.loc[mask_obs, 'f_esc(LyC)-Hbeta'])
         obs_sfr = self.observations.loc[mask_obs, 'log10(SFR)-UV']
@@ -739,18 +743,19 @@ class SPHINXLyCAnalyzer:
         fletcher_fesc = np.log10(fletcher_data.loc[mask_fletcher, 'f_esc'])
         fletcher_sfr = fletcher_data.loc[mask_fletcher, 'A_SFR']
 
-        ax2.scatter(fletcher_sfr, fletcher_fesc,
-                    alpha=0.7, s=100, label='LACES',
-                    color='green', marker='s', edgecolors='black', linewidth=0.5)
+        ax2.scatter(np.log10(fletcher_sfr), fletcher_fesc,
+                    alpha=0.7, s=200, label='LACES',
+                    color='green', marker='*', edgecolors='black', linewidth=0.5)
 
-        ax2.scatter(10**obs_sfr, obs_fesc,
+        ax2.scatter(obs_sfr, obs_fesc,
                     alpha=0.7, s=100, label='LzLCS',
                     color='red', marker='s', edgecolors='black', linewidth=0.5)
 
-        ax2.set_xlabel('SFR (Msol /yr)', fontsize=11)
+        ax2.set_xlabel('log10(SFR)(Msol /yr)', fontsize=11)
         ax2.set_ylabel('log10(f_esc)', fontsize=11)
-        ax2.set_title('Star Formation Rate vs LyC escape fraction', fontsize=12, fontweight='bold')
+        ax2.set_title('Star Formation Rate vs LyC escape fraction, xlim[0,5]', fontsize=12, fontweight='bold')
         ax2.legend()
+        ax2.set_xlim(0,5)
         ax2.grid(True, alpha=0.3)
 
         # 3. Metallicity vs f_esc - CORRECTED WITH CONVERSION
@@ -771,10 +776,10 @@ class SPHINXLyCAnalyzer:
 
 
 
-        ax3.scatter(O32, self.df['f_esc'],
-                    alpha=0.4, s=30, label='SPHINX20', color='blue')
+        scatter3=ax3.scatter(O32[mask], self.df['f_esc'][mask],
+                    alpha=0.4, s=30, label='SPHINX20', c=self.df['redshift'][mask],cmap='cividis')
 
-        mask_obs = (self.observations['f_esc(LyC)-Hbeta'].notna() &
+        mask_obs = (self.observations['f_esc(LyC)-Hbeta'].notna() & mask01 &
                     O32_obs.notna())
 
         mask_fletcher = (fletcher_data['f_esc'].notna() &
@@ -794,21 +799,21 @@ class SPHINXLyCAnalyzer:
                     alpha=0.7, s=100, label='LzLCS',
                     color='red', marker='s', edgecolors='black', linewidth=0.5)
         ax3.scatter(fletcher_metal, fletcher_fesc,
-                    alpha=0.7, s=100, label='LACES',
-                    color='green', marker='s', edgecolors='black', linewidth=0.5)
+                    alpha=0.7, s=200, label='LACES',
+                    color='green', marker='*', edgecolors='black', linewidth=0.5)
         ax3.set_xlabel('OIII/OII', fontsize=11)
-        ax3.set_xlim(0,100)
+        ax3.set_xlim(0,40)
 
         ax3.set_ylabel('log₁₀(f_esc)', fontsize=11)
-        ax3.set_title('OIII/OII vs f_esc, xrange [0,100]', fontsize=12, fontweight='bold')
+        ax3.set_title('OIII/OII vs f_esc, xrange [0,40]', fontsize=12, fontweight='bold')
         ax3.legend()
         ax3.grid(True, alpha=0.3)
 
         # 4. xi_ion vs f_esc
         ax4 = fig.add_subplot(gs[1, 1])
-        ax4.scatter(self.df['xi_ion'], self.df['f_esc'],
-                    alpha=0.4, s=30, label='SPHINX20', color='blue')
-        mask_obs = (self.observations['f_esc(LyC)-Hbeta'].notna() &
+        scatter4=ax4.scatter(self.df['xi_ion'][mask], self.df['f_esc'][mask],
+                    alpha=0.4, s=30, label='SPHINX20', c=self.df['redshift'][mask],cmap='cividis')
+        mask_obs = (self.observations['f_esc(LyC)-Hbeta'].notna() & mask01 &
                     self.observations['xi-ion'].notna())
         obs_fesc = np.log10(self.observations.loc[mask_obs, 'f_esc(LyC)-Hbeta'])
         obs_xi = self.observations.loc[mask_obs, 'xi-ion']
@@ -821,8 +826,22 @@ class SPHINXLyCAnalyzer:
         ax4.legend()
         ax4.grid(True, alpha=0.3)
 
-        plt.suptitle('Multi-Parameter Comparison: Simulations vs Observations',
+
+        cbar1 = fig.colorbar(scatter1, ax=ax1)
+        cbar1.set_label('Redshift', fontsize=9)
+
+        cbar2 = fig.colorbar(scatter2, ax=ax2)
+        cbar2.set_label('Redshift', fontsize=9)
+
+        cbar3 = fig.colorbar(scatter3, ax=ax3)
+        cbar3.set_label('Redshift', fontsize=9)
+
+        cbar4 = fig.colorbar(scatter4, ax=ax4)
+        cbar4.set_label('Redshift', fontsize=9)
+
+        plt.suptitle(' Multi-Parameter Comparison: Simulations vs Observations',
                      fontsize=15, fontweight='bold', y=0.995)
+
 
         if save_path:
             plt.savefig(save_path, dpi=300, bbox_inches='tight')
@@ -1283,7 +1302,7 @@ def main():
     # analyser.plot_fesc_vs_uvbeta()
     # analyser.plot_fesc_vs_xi_ion()
     # analyser.plot_fesc_histograms()
-    analyzer.plot_multiparameter_comparison(save_path=home_path+'comprehensive_comparison.png')
+    analyzer.plot_multiparameter_comparison(save_path=home_path+'comprehensive_comparison_all.png')
 
     # Call the new indirect indicator plots:
     # analyzer.plot_o32_vs_metallicity(save_path=home_path + 'o32_metallicity.png')
