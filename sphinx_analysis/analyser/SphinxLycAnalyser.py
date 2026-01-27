@@ -718,10 +718,10 @@ class SPHINXLyCAnalyzer:
         ax1.scatter((fletcher_mass), fletcher_fesc,
                     alpha=0.7, s=200, label='LACES',
                     color='green', marker='*', edgecolors='black', linewidth=0.5)
-        ax1.set_xlabel('log₁₀(M* / Msol)', fontsize=11)
-        ax1.set_ylabel('log₁₀(f_esc)', fontsize=11)
-        ax1.set_title('Stellar Mass vs f_esc', fontsize=12, fontweight='bold')
-        ax1.legend()
+        ax1.set_xlabel('log₁₀(M* / $\mathrm{M_{\odot}}$)', fontsize=11)
+        ax1.set_ylabel('log₁₀($\mathrm{f_{esc}}$)', fontsize=11)
+        ax1.set_title('Stellar Mass vs $\mathrm{f_{esc}}$', fontsize=12, fontweight='bold')
+        #ax1.legend()
         ax1.grid(True, alpha=0.3)
 
         # 2. SFR vs f_esc
@@ -751,10 +751,10 @@ class SPHINXLyCAnalyzer:
                     alpha=0.7, s=100, label='LzLCS',
                     color='red', marker='s', edgecolors='black', linewidth=0.5)
 
-        ax2.set_xlabel('log10(SFR)(Msol /yr)', fontsize=11)
-        ax2.set_ylabel('log10(f_esc)', fontsize=11)
-        ax2.set_title('Star Formation Rate vs LyC escape fraction, xlim[0,5]', fontsize=12, fontweight='bold')
-        ax2.legend()
+        ax2.set_xlabel('log10(SFR)($\mathrm{M_{\odot}}$ /yr)', fontsize=11)
+        ax2.set_ylabel('log10($\mathrm{f_{esc}}$)', fontsize=11)
+        ax2.set_title('Star Formation Rate vs $\mathrm{f_{esc}}$, xrange[0,5]', fontsize=12, fontweight='bold')
+        # ax2.legend()
         ax2.set_xlim(0,5)
         ax2.grid(True, alpha=0.3)
 
@@ -804,9 +804,9 @@ class SPHINXLyCAnalyzer:
         ax3.set_xlabel('OIII/OII', fontsize=11)
         ax3.set_xlim(0,40)
 
-        ax3.set_ylabel('log₁₀(f_esc)', fontsize=11)
-        ax3.set_title('OIII/OII vs f_esc, xrange [0,40]', fontsize=12, fontweight='bold')
-        ax3.legend()
+        ax3.set_ylabel('log₁₀($\mathrm{f_{esc}}$)', fontsize=11)
+        ax3.set_title('OIII/OII vs $\mathrm{f_{esc}}$, xrange [0,40]', fontsize=12, fontweight='bold')
+        # ax3.legend()
         ax3.grid(True, alpha=0.3)
 
         # 4. xi_ion vs f_esc
@@ -829,10 +829,10 @@ class SPHINXLyCAnalyzer:
         ax4.scatter(fletcher_xi, fletcher_fesc,
                     alpha=0.7, s=200, label='LACES',
                     color='green', marker='*', edgecolors='black', linewidth=0.5)
-        ax4.set_xlabel('log₁₀(ξ_ion / Hz erg)', fontsize=11)
-        ax4.set_ylabel('log₁₀(f_esc)', fontsize=11)
-        ax4.set_title('ξ_ion vs f_esc', fontsize=12, fontweight='bold')
-        ax4.legend()
+        ax4.set_xlabel('log₁₀($ξ_{\mathrm{ion}}$ / Hz erg)', fontsize=11)
+        ax4.set_ylabel('log₁₀($\mathrm{f_{esc}}$)', fontsize=11)
+        ax4.set_title('$ξ_{\mathrm{ion}}$ vs $\mathrm{f_{esc}}$', fontsize=12, fontweight='bold')
+        # ax4.legend()
         ax4.grid(True, alpha=0.3)
 
 
@@ -848,10 +848,22 @@ class SPHINXLyCAnalyzer:
         cbar4 = fig.colorbar(scatter4, ax=ax4)
         cbar4.set_label('Redshift', fontsize=9)
 
-        plt.suptitle(' Multi-Parameter Comparison: Simulations vs Observations',
+        plt.suptitle(r'$f_{\mathrm{esc}}>10\%$' + ' Multi-Parameter Comparison: Simulations vs Observations',
                      fontsize=15, fontweight='bold', y=0.995)
+        from matplotlib.patches import Patch
+        from matplotlib.lines import Line2D
+        legend_elements = [
+            Line2D([0], [0], marker='o', color='w', label='SPHINX20',
+                   markerfacecolor='gray', markersize=8, alpha=0.6),
+            Line2D([0], [0], marker='s', color='w', label='LzLCS',
+                   markerfacecolor='red', markersize=10, markeredgecolor='black', markeredgewidth=0.5),
+            Line2D([0], [0], marker='*', color='w', label='LACES',
+                   markerfacecolor='green', markersize=15, markeredgecolor='black', markeredgewidth=0.5)
+        ]
 
-
+        fig.legend(handles=legend_elements, loc='lower center',
+                   ncol=3, fontsize=12, frameon=True,
+                   bbox_to_anchor=(0.5, 0.02))
         if save_path:
             plt.savefig(save_path, dpi=300, bbox_inches='tight')
         plt.show()
@@ -1285,6 +1297,512 @@ class SPHINXLyCAnalyzer:
         plt.show()
 
 
+    def plot_mass_sfr_relation(self, figsize=(12, 8), save_path=None):
+        """
+        Create stellar mass vs SFR plot color-coded by redshift.
+        Includes SPHINX20 simulations, LzLCS observations, and LACES data.
+        """
+        fletcher_path = '/home/mezziati/Documents/IAP/SPHINX20/data/fletcher.csv'
+        print("Loading SPHINX20 data...")
+        fletcher_data = pd.read_csv(fletcher_path)
+        print(f"Loaded {len(fletcher_data)} galaxies")
+
+        fig, ax = plt.subplots(figsize=figsize)
+
+        # Filter for valid data in simulations
+        mask_sim = (self.df['stellar_mass'].notna() &
+                    self.df['sfr_100'].notna() &
+                    self.df['redshift'].notna())
+
+        # Plot SPHINX20 simulations with redshift color-coding
+        scatter = ax.scatter(
+            self.df.loc[mask_sim, 'stellar_mass'],
+            np.log10(self.df.loc[mask_sim, 'sfr_100']),
+            c=self.df.loc[mask_sim, 'redshift'],
+            cmap='cividis',
+            alpha=0.4,
+            s=30,
+            label='SPHINX20',
+            edgecolors='none'
+        )
+
+        # Add LzLCS observations
+        mask_obs = (self.observations['log10(Mstar)'].notna() &
+                    self.observations['log10(SFR)-UV'].notna())
+
+        if mask_obs.any():
+            ax.scatter(
+                self.observations.loc[mask_obs, 'log10(Mstar)'],
+                self.observations.loc[mask_obs, 'log10(SFR)-UV'],
+                alpha=0.7,
+                s=100,
+                label='LzLCS',
+                color='red',
+                marker='s',
+                edgecolors='black',
+                linewidth=0.5,
+                zorder=5
+            )
+
+        # Add LACES (fletcher) data
+        mask_fletcher = (fletcher_data['M_star'].notna() &
+                         fletcher_data['A_SFR'].notna())
+
+        if mask_fletcher.any():
+            ax.scatter(
+                fletcher_data.loc[mask_fletcher, 'M_star'],
+                np.log10(fletcher_data.loc[mask_fletcher, 'A_SFR']),
+                alpha=0.7,
+                s=200,
+                label='LACES',
+                color='green',
+                marker='*',
+                edgecolors='black',
+                linewidth=0.5,
+                zorder=5
+            )
+
+        # Add colorbar for redshift
+        cbar = plt.colorbar(scatter, ax=ax)
+        cbar.set_label('Redshift', fontsize=12)
+
+        # Labels and formatting
+        ax.set_xlabel('log₁₀(M* / $\mathrm{M_{\odot}}$)', fontsize=13)
+        ax.set_ylabel('log₁₀(SFR / $\mathrm{M_{\odot}}$ yr$^{-1}$)', fontsize=13)
+        ax.set_title('Stellar Mass vs SFR',
+                     fontsize=14, fontweight='bold')
+        ax.grid(True, alpha=0.3)
+        # Create custom legend
+        from matplotlib.lines import Line2D
+        legend_elements = [
+            Line2D([0], [0], marker='o', color='w', label='SPHINX20',
+                   markerfacecolor='gray', markersize=8, alpha=0.6),
+            Line2D([0], [0], marker='s', color='w', label='LzLCS',
+                   markerfacecolor='red', markersize=10,
+                   markeredgecolor='black', markeredgewidth=0.5),
+            Line2D([0], [0], marker='*', color='w', label='LACES',
+                   markerfacecolor='green', markersize=15,
+                   markeredgecolor='black', markeredgewidth=0.5)
+        ]
+        ax.legend(handles=legend_elements, loc='best', fontsize=11, frameon=True)
+
+        plt.tight_layout()
+
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            print(f"Figure saved to {save_path}")
+
+        plt.show()
+
+    def plot_ebv_beta_relation(self, figsize=(12, 8), save_path=None):
+        """
+        Create E(B-V) vs Beta slope plot with analytical relation.
+        Includes SPHINX20 simulations and LzLCS observations.
+        """
+
+
+        fig, ax = plt.subplots(figsize=figsize)
+
+        # Simulation mask
+        mask_sim = (self.df['f_esc'].notna() &
+                    self.df['H__1_6562.80A_int'].notna() &  # Halpha
+                    self.df['cont_1500_int'].notna() &  # L1500
+                    self.df['beta_int_s'].notna() &  # beta slope
+                    self.df['redshift'].notna() &
+                    self.df['ebmv_dir_0'].notna() &
+                    self.df['ebmv_dir_1'].notna() &
+                    self.df['ebmv_dir_2'].notna() &
+                    self.df['ebmv_dir_3'].notna() &
+                    self.df['ebmv_dir_4'].notna() &
+                    self.df['ebmv_dir_5'].notna() &
+                    self.df['ebmv_dir_6'].notna() &
+                    self.df['ebmv_dir_7'].notna() &
+                    self.df['ebmv_dir_8'].notna() &
+                    self.df['ebmv_dir_9'].notna())
+
+        # Calculate mean E(B-V) across all 10 directions
+        ebv_columns = [f'ebmv_dir_{i}' for i in range(10)]
+        self.df['ebmv_mean'] = self.df[ebv_columns].mean(axis=1)
+
+        # Observation mask
+        mask_obs = (self.observations['UV-beta'].notna() &
+                    self.observations['E(B-V)_uv'].notna() &
+                    self.observations['H1r_6563A'].notna() &
+                    self.observations['f_esc(LyC)-Hbeta'].notna() &
+                    self.observations['M_1500'].notna())
+
+        # Plot observations (LzLCS)
+        if mask_obs.any():
+            ax.scatter(
+                self.observations.loc[mask_obs, 'UV-beta'],
+                np.log10(self.observations.loc[mask_obs, 'E(B-V)_nebular']),
+                alpha=0.7,
+                s=100,
+                label='LzLCS',
+                color='red',
+                marker='s',
+                edgecolors='black',
+                linewidth=0.5,
+                zorder=5
+            )
+
+        # Plot simulations (SPHINX20) - color-coded by f_esc
+        scatter = ax.scatter(
+            self.df.loc[mask_sim, 'beta_int_s'],
+            np.log10(self.df.loc[mask_sim, 'ebmv_mean']),
+            c=10**self.df.loc[mask_sim, 'f_esc'],
+            cmap='cividis',
+            alpha=0.4,
+            s=30,
+            label='SPHINX20',
+            edgecolors='none'
+        )
+
+        # Add colorbar for f_esc
+        cbar = plt.colorbar(scatter, ax=ax)
+        cbar.set_label('$f_{esc}$', fontsize=12)
+
+        # Plot analytical relation: log10(E(B-V)) = -1.1 * beta - 3.3
+        beta_range = np.linspace(-3, 0.5, 100)
+        log_ebv_analytical = -1.1 * beta_range - 3.3
+        ax.plot(beta_range, log_ebv_analytical,
+                'k--', linewidth=2, label='log₁₀(E(B-V)) = -1.1β - 3.3',
+                zorder=10)
+
+        # Labels and formatting
+        ax.set_xlabel('UV β slope', fontsize=13)
+        ax.set_ylabel('log₁₀(E(B-V))', fontsize=13)
+        ax.set_title('UV Beta Slope vs E(B-V)',
+                     fontsize=14, fontweight='bold')
+        #ax.set_ylim(-5)
+        ax.grid(True, alpha=0.3)
+
+        # Create custom legend
+        from matplotlib.lines import Line2D
+        legend_elements = [
+            Line2D([0], [0], marker='o', color='w', label='SPHINX20',
+                   markerfacecolor='gray', markersize=8, alpha=0.6),
+            Line2D([0], [0], marker='s', color='w', label='LzLCS',
+                   markerfacecolor='red', markersize=10,
+                   markeredgecolor='black', markeredgewidth=0.5),
+            Line2D([0], [0], color='black', linestyle='--', linewidth=2,
+                   label='log₁₀(E(B-V)) = -1.1β - 3.3')
+        ]
+        ax.legend(handles=legend_elements, loc='best', fontsize=11, frameon=True)
+
+        plt.tight_layout()
+
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            print(f"Figure saved to {save_path}")
+
+        plt.show()
+
+
+    def plot_ebv_beta_relation2(self, figsize=(12, 8), save_path=None):
+        """
+        Create E(B-V) vs Beta slope plot with analytical relation.
+        Includes SPHINX20 simulations and LzLCS observations.
+        Only observations color-coded by f_esc.
+        Includes side histogram for f_esc > 5% simulations.
+        """
+        # Create figure with gridspec for main plot and histogram
+        fig = plt.figure(figsize=figsize)
+        gs = fig.add_gridspec(1, 2, width_ratios=[4, 1], wspace=0.05)
+        ax_main = fig.add_subplot(gs[0])
+        ax_hist = fig.add_subplot(gs[1], sharey=ax_main)
+
+        # Simulation mask
+        mask_sim = (self.df['f_esc'].notna() &
+                    self.df['H__1_6562.80A_int'].notna() &  # Halpha
+                    self.df['cont_1500_int'].notna() &  # L1500
+                    self.df['beta_int_s'].notna() &  # beta slope
+                    self.df['redshift'].notna() &
+                    self.df['ebmv_dir_0'].notna() &
+                    self.df['ebmv_dir_1'].notna() &
+                    self.df['ebmv_dir_2'].notna() &
+                    self.df['ebmv_dir_3'].notna() &
+                    self.df['ebmv_dir_4'].notna() &
+                    self.df['ebmv_dir_5'].notna() &
+                    self.df['ebmv_dir_6'].notna() &
+                    self.df['ebmv_dir_7'].notna() &
+                    self.df['ebmv_dir_8'].notna() &
+                    self.df['ebmv_dir_9'].notna())
+
+        # Calculate mean E(B-V) across all 10 directions
+        ebv_columns = [f'ebmv_dir_{i}' for i in range(10)]
+        self.df['ebmv_mean'] = self.df[ebv_columns].mean(axis=1)
+
+        # Additional mask for f_esc > 5%
+        mask_sim_high_fesc = mask_sim & (10**self.df['f_esc'] > 0.05)
+        mask_sim2 = mask_sim & (np.log10(self.df['H__1_6562.80A_int'] / self.df['cont_1500_int'])<1.6)
+        # Observation mask
+        mask_obs = (self.observations['UV-beta'].notna() &
+                    self.observations['E(B-V)_uv'].notna() &
+                    self.observations['H1r_6563A'].notna() &
+                    self.observations['f_esc(LyC)-Hbeta'].notna() &
+                    self.observations['M_1500'].notna())
+
+        # Plot simulations (SPHINX20) - gray color, no color-coding
+        scatter=ax_main.scatter(
+            self.df.loc[mask_sim2, 'beta_int_s'],
+            np.log10(self.df.loc[mask_sim2, 'ebmv_mean']),
+            c=10 ** self.df.loc[mask_sim2, 'f_esc']*100,
+            cmap='cividis',
+            alpha=0.4,
+            s=30,
+            label='SPHINX20',
+            edgecolors='none'
+        )
+
+        # Plot observations (LzLCS) - color-coded by f_esc
+        if mask_obs.any():
+            scatter_obs = ax_main.scatter(
+                self.observations.loc[mask_obs, 'UV-beta'],
+                np.log10(self.observations.loc[mask_obs, 'E(B-V)_uv']),
+
+                alpha=0.7,
+                s=100,
+                label='LzLCS',
+                marker='s',
+                edgecolors='black',
+                linewidth=0.5,
+                zorder=5,
+                vmin=0,
+                vmax=1
+            )
+
+            # Add colorbar for f_esc (observations only)
+            cbar = plt.colorbar(scatter, ax=ax_main)
+            cbar.set_label('$f_{esc}$ (LyC)', fontsize=12)
+
+        # Plot analytical relation: log10(E(B-V)) = -1.1 * beta - 3.3
+        beta_range = np.linspace(-3, 0.5, 100)
+        log_ebv_analytical = -1.1 * beta_range - 3.3
+        ax_main.plot(beta_range, log_ebv_analytical,
+                     'k--', linewidth=2, label='log₁₀(E(B-V)) = -1.1β - 3.3',
+                     zorder=10)
+
+        # Labels and formatting for main plot
+        ax_main.set_xlabel('UV β slope', fontsize=13)
+        ax_main.set_ylabel('log₁₀(E(B-V))', fontsize=13)
+        ax_main.set_title('UV Beta Slope vs E(B-V)',
+                          fontsize=14, fontweight='bold')
+        ax_main.grid(True, alpha=0.3)
+
+        # Create custom legend
+        from matplotlib.lines import Line2D
+        legend_elements = [
+            Line2D([0], [0], marker='o', color='w', label='SPHINX20',
+                   markerfacecolor='gray', markersize=8, alpha=0.6),
+            Line2D([0], [0], marker='s', color='w', label='LzLCS',
+                   markerfacecolor='gray', markersize=10,
+                   markeredgecolor='black', markeredgewidth=0.5),
+            Line2D([0], [0], color='black', linestyle='--', linewidth=2,
+                   label='log₁₀(E(B-V)) = -1.1β - 3.3')
+        ]
+        ax_main.legend(handles=legend_elements, loc='best', fontsize=11, frameon=True)
+
+        # Side histogram for f_esc > 5%
+        if mask_sim_high_fesc.any():
+            log_ebv_high_fesc = (np.log10(self.df.loc[mask_sim_high_fesc, 'ebmv_mean']))
+            ax_hist.hist(log_ebv_high_fesc, bins=30, orientation='horizontal',
+                         color='steelblue', alpha=0.7, edgecolor='black', linewidth=0.5)
+            ax_hist.set_xlabel('Count', fontsize=11)
+            ax_hist.set_title(f'$f_{{esc}}$ > 5%\n(n={mask_sim_high_fesc.sum()})',
+                              fontsize=10, fontweight='bold')
+            ax_hist.grid(True, alpha=0.3, axis='x')
+
+        # Remove y-axis labels from histogram (shared with main plot)
+        ax_hist.tick_params(labelleft=False)
+
+        plt.tight_layout()
+
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            print(f"Figure saved to {save_path}")
+
+        plt.show()
+
+    def plot_ebv_beta_relation3(self, figsize=(12, 8), save_path=None):
+        """
+        Create E(B-V) vs Beta slope plot with analytical relation.
+        Includes SPHINX20 simulations and LzLCS observations.
+        Only observations color-coded by f_esc.
+        Includes side histogram for f_esc > 5% simulations.
+        Prints detailed statistics for both datasets.
+        """
+        # Create figure with gridspec for main plot and histogram
+        fig = plt.figure(figsize=figsize)
+        gs = fig.add_gridspec(1, 2, width_ratios=[4, 1], wspace=0.05)
+        ax_main = fig.add_subplot(gs[0])
+        ax_hist = fig.add_subplot(gs[1], sharey=ax_main)
+
+        print("\n" + "=" * 60)
+        print("STATISTICS FOR SIMULATIONS (SPHINX20)")
+        print("=" * 60)
+
+        # Total galaxies
+        print(f"Total galaxies: {len(self.df)}")
+
+        # Base mask (all columns present)
+        mask_sim_base = (self.df['f_esc'].notna() &
+                         self.df['H__1_6562.80A_int'].notna() &  # Halpha
+                         self.df['cont_1500_int'].notna() &  # L1500
+                         self.df['beta_int_s'].notna() &  # beta slope
+                         self.df['redshift'].notna() &
+                         self.df['ebmv_dir_0'].notna() &
+                         self.df['ebmv_dir_1'].notna() &
+                         self.df['ebmv_dir_2'].notna() &
+                         self.df['ebmv_dir_3'].notna() &
+                         self.df['ebmv_dir_4'].notna() &
+                         self.df['ebmv_dir_5'].notna() &
+                         self.df['ebmv_dir_6'].notna() &
+                         self.df['ebmv_dir_7'].notna() &
+                         self.df['ebmv_dir_8'].notna() &
+                         self.df['ebmv_dir_9'].notna())
+
+        print(f"Galaxies with all required data: {mask_sim_base.sum()}")
+
+        # Calculate mean E(B-V) across all 10 directions
+        ebv_columns = [f'ebmv_dir_{i}' for i in range(10)]
+        self.df['ebmv_mean'] = self.df[ebv_columns].mean(axis=1)
+
+        # Calculate Halpha/L1500 ratio
+        self.df['halpha_l1500_ratio'] = np.log10(self.df['H__1_6562.80A_int'] / self.df['cont_1500_int'])
+
+        # Individual cuts
+        mask_fesc = mask_sim_base & (10 ** self.df['f_esc'] > 0.05)
+        mask_ratio = mask_sim_base & (self.df['halpha_l1500_ratio'] < 1.6)
+
+        print(f"  → After f_esc > 5% cut: {mask_fesc.sum()}")
+        print(f"  → After Hα/L1500 < 1.6 cut: {mask_ratio.sum()}")
+
+        # Combined cuts
+        mask_sim = mask_sim_base & (10 ** self.df['f_esc'] > 0.05) & (self.df['halpha_l1500_ratio'] < 1.6)
+        print(f"  → After BOTH cuts: {mask_sim.sum()}")
+
+        print("\n" + "=" * 60)
+        print("STATISTICS FOR OBSERVATIONS (LzLCS)")
+        print("=" * 60)
+
+        # Total observations
+        print(f"Total galaxies: {len(self.observations)}")
+
+        # Convert M_1500 to L_1500 for observations
+        # L_1500 / L_sun = 10^(-0.4 * (M_1500 - M_sun_1500))
+        # Using M_sun_1500 ≈ 15.5
+        M_sun_1500 = 15.5
+        self.observations['L_1500'] = 10 ** (-0.4 * (self.observations['M_1500'] - M_sun_1500))
+
+        # Calculate Halpha/L1500 ratio for observations
+        # Need to convert Halpha flux to luminosity first
+        # L(Halpha) is already in the observations as L(H1r_6563A)
+        # But we need flux ratio, so use flux directly
+        # Actually, for consistent comparison, let's use the flux ratio
+        self.observations['halpha_l1500_ratio'] = np.log10(
+            self.observations['H1r_6563A'] / self.observations['L_1500'])
+
+        # Base mask (all columns present)
+        mask_obs_base = (self.observations['UV-beta'].notna() &
+                         self.observations['E(B-V)_uv'].notna() &
+                         self.observations['H1r_6563A'].notna() &
+                         self.observations['f_esc(LyC)-UVfit'].notna() &
+                         self.observations['M_1500'].notna())
+
+        print(f"Galaxies with all required data: {mask_obs_base.sum()}")
+
+        # Individual cuts
+        mask_obs_fesc = mask_obs_base & (self.observations['f_esc(LyC)-UVfit'] > 0.05)
+        mask_obs_ratio = mask_obs_base & (self.observations['halpha_l1500_ratio'] < 1.6)
+
+        print(f"  → After f_esc > 5% cut: {mask_obs_fesc.sum()}")
+        print(f"  → After Hα/L1500 < 1.6 cut: {mask_obs_ratio.sum()}")
+
+        # Combined cuts
+        mask_obs = mask_obs_base & (self.observations['f_esc(LyC)-UVfit'] > 0.05) & (
+                    self.observations['halpha_l1500_ratio'] < 1.6)
+        print(f"  → After BOTH cuts: {mask_obs.sum()}")
+        print("=" * 60 + "\n")
+
+        # Plot simulations (SPHINX20) - color-coded by f_esc
+        scatter = ax_main.scatter(
+            self.df.loc[mask_sim, 'beta_int_s'],
+            np.log10(self.df.loc[mask_sim, 'ebmv_mean']),
+            c=10 ** self.df.loc[mask_sim, 'f_esc'] * 100,
+            cmap='cividis',
+            alpha=0.4,
+            s=30,
+            label='SPHINX20',
+            edgecolors='none'
+        )
+
+        # Plot observations (LzLCS) - red squares
+        if mask_obs.any():
+            scatter_obs = ax_main.scatter(
+                self.observations.loc[mask_obs, 'UV-beta'],
+                np.log10(self.observations.loc[mask_obs, 'E(B-V)_uv']),
+                alpha=0.7,
+                s=100,
+                label='LzLCS',
+                color='red',
+                marker='s',
+                edgecolors='black',
+                linewidth=0.5,
+                zorder=5
+            )
+
+        # Add colorbar for f_esc (simulations)
+        cbar = plt.colorbar(scatter, ax=ax_main)
+        cbar.set_label('$f_{esc}$ (%)', fontsize=12)
+
+        # Plot analytical relation: log10(E(B-V)) = -1.1 * beta - 3.3
+        beta_range = np.linspace(-3, 0.5, 100)
+        log_ebv_analytical = -1.1 * beta_range - 3.3
+        ax_main.plot(beta_range, log_ebv_analytical,
+                     'k--', linewidth=2, label='log₁₀(E(B-V)) = -1.1β - 3.3',
+                     zorder=10)
+
+        # Labels and formatting for main plot
+        ax_main.set_xlabel('UV β slope', fontsize=13)
+        ax_main.set_ylabel('log₁₀(E(B-V))', fontsize=13)
+        ax_main.set_title('UV Beta Slope vs E(B-V)',
+                          fontsize=14, fontweight='bold')
+        ax_main.grid(True, alpha=0.3)
+
+        # Create custom legend
+        from matplotlib.lines import Line2D
+        legend_elements = [
+            Line2D([0], [0], marker='o', color='w', label='SPHINX20',
+                   markerfacecolor='gray', markersize=8, alpha=0.6),
+            Line2D([0], [0], marker='s', color='w', label='LzLCS',
+                   markerfacecolor='red', markersize=10,
+                   markeredgecolor='black', markeredgewidth=0.5),
+            Line2D([0], [0], color='black', linestyle='--', linewidth=2,
+                   label='log₁₀(E(B-V)) = -1.1β - 3.3')
+        ]
+        ax_main.legend(handles=legend_elements, loc='best', fontsize=11, frameon=True)
+
+        # Side histogram for simulations with f_esc > 5% and ratio cut
+        if mask_sim.any():
+            log_ebv_high_fesc = np.log10(self.df.loc[mask_sim, 'ebmv_mean'])
+            ax_hist.hist(log_ebv_high_fesc, bins=30, orientation='horizontal',
+                         color='steelblue', alpha=0.7, edgecolor='black', linewidth=0.5)
+            ax_hist.set_xlabel('Count', fontsize=11)
+            ax_hist.set_title(f'SPHINX20\n$f_{{esc}}$ > 5%\nHα/L1500 < 1.6\n(n={mask_sim.sum()})',
+                              fontsize=10, fontweight='bold')
+            ax_hist.grid(True, alpha=0.3, axis='x')
+
+        # Remove y-axis labels from histogram (shared with main plot)
+        ax_hist.tick_params(labelleft=False)
+
+        plt.tight_layout()
+
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            print(f"Figure saved to {save_path}")
+
+        plt.show()
 def main():
     """Main analysis pipeline."""
 
@@ -1311,8 +1829,7 @@ def main():
     # analyser.plot_fesc_vs_uvbeta()
     # analyser.plot_fesc_vs_xi_ion()
     # analyser.plot_fesc_histograms()
-    analyzer.plot_multiparameter_comparison(save_path=home_path+'comprehensive_comparison_all.png')
-
+    #analyzer.plot_multiparameter_comparison(save_path=home_path+'comprehensive_comparison_all_F01.png')
     # Call the new indirect indicator plots:
     # analyzer.plot_o32_vs_metallicity(save_path=home_path + 'o32_metallicity.png')
     # analyzer.plot_ew_hbeta_vs_mass(save_path=home_path + 'ew_mass.png')
@@ -1321,6 +1838,8 @@ def main():
     # analyzer.plot_o32_vs_ew_hbeta(save_path=home_path + 'o32_ew_diagnostic.png')
     # analyzer.plot_compactness_diagnostic(save_path=home_path + 'compactness.png')
     # analyzer.plot_lya_lyc_comparison(save_path=home_path + 'lya_lyc.png')
+    analyzer.plot_ebv_beta_relation3(save_path=home_path+'ebv_beta_relation.png')
+    #analyzer.plot_mass_sfr_relation(save_path=home_path+'mass_sfr_relation.png')
 
     print("\n" + "=" * 60)
     print("ANALYSIS COMPLETE!")
