@@ -1,0 +1,443 @@
+================================================================================
+PARAMETER AVAILABILITY ACROSS DATASETS
+SPHINX20 Simulations vs LzLCS Observations
+================================================================================
+
+Generated: 2026-01-29 17:55:27.187845
+Simulation file: 1380 galaxies, 917 columns
+Observation file: 89 galaxies, 145 columns
+
+================================================================================
+
+
+────────────────────────────────────────────────────────────────────────────────
+BASIC PROPERTIES
+────────────────────────────────────────────────────────────────────────────────
+
+✓─ halo_id                                            [SIM ONLY]
+     → Simulation: halo_id
+
+✓✓ redshift/z                                         [BOTH]
+     → Simulation: redshift
+     → Observation: z
+
+─✓ RA                                                 [OBS ONLY]
+     → Observation: RA
+
+─✓ DEC                                                [OBS ONLY]
+     → Observation: DEC
+
+
+────────────────────────────────────────────────────────────────────────────────
+MASS & SIZE
+────────────────────────────────────────────────────────────────────────────────
+
+✓─ M_halo/mvir                                        [SIM ONLY]
+     → Simulation: mvir
+
+✓─ R_halo/rvir                                        [SIM ONLY]
+     → Simulation: rvir
+
+✓✓ stellar_mass/M_star                                [BOTH]
+     → Simulation: stellar_mass
+     → Observation: log10(Mstar)
+
+─✓ r50/half_radius                                    [OBS ONLY]
+     → Observation: r_50_phys
+
+
+────────────────────────────────────────────────────────────────────────────────
+STAR FORMATION
+────────────────────────────────────────────────────────────────────────────────
+
+✓✓ SFR                                                [BOTH]
+     → Simulation: sfr_10
+     → Observation: log10(SFR)-UV
+
+✓─ SFR_3Myr                                           [SIM ONLY]
+     → Simulation: sfr_3
+
+✓─ SFR_5Myr                                           [SIM ONLY]
+     → Simulation: sfr_5
+
+✓─ SFR_10Myr                                          [SIM ONLY]
+     → Simulation: sfr_10
+
+✓─ SFR_100Myr                                         [SIM ONLY]
+     → Simulation: sfr_100
+
+✓✓ sSFR                                               [BOTH]
+     → Simulation: sSFR (calculated)
+     → Observation: calculated from SFR/M*
+
+
+────────────────────────────────────────────────────────────────────────────────
+LYC ESCAPE FRACTION
+────────────────────────────────────────────────────────────────────────────────
+
+✓✓ f_esc                                              [BOTH]
+     → Simulation: f_esc
+     → Observation: f_esc(LyC)-UVfit
+
+✓─ f_esc_dir (directions: 0-9, mean, std)             [SIM ONLY]
+     → Simulation: fesc_dir_0...9
+
+─✓ f_esc_Lya                                          [OBS ONLY]
+     → Observation: f_esc(LyA)
+
+
+────────────────────────────────────────────────────────────────────────────────
+METALLICITY
+────────────────────────────────────────────────────────────────────────────────
+
+✓─ Z_gas                                              [SIM ONLY]
+     → Simulation: gas_metallicity
+
+✓─ Z_star                                             [SIM ONLY]
+     → Simulation: stellar_metallicity
+
+✓✓ metallicity/12+log(O/H)                            [BOTH]
+     → Simulation: gas_metallicity + 8.69
+     → Observation: OH_12
+
+✓─ Z_gas_Hb                                           [SIM ONLY]
+     → Simulation: gas_metallicity_Hb
+
+✓─ Z_gas_5007                                         [SIM ONLY]
+     → Simulation: gas_metallicity_5007
+
+✓─ Z_gas_6583                                         [SIM ONLY]
+     → Simulation: gas_metallicity_6583
+
+✓─ Z_gas_3727                                         [SIM ONLY]
+     → Simulation: gas_metallicity_3727
+
+
+────────────────────────────────────────────────────────────────────────────────
+STELLAR PROPERTIES
+────────────────────────────────────────────────────────────────────────────────
+
+✓─ age_star                                           [SIM ONLY]
+     → Simulation: mean_stellar_age_mass
+
+✓─ age_star_lion                                      [SIM ONLY]
+     → Simulation: mean_stellar_age_lion
+
+✓─ Z_star_mass                                        [SIM ONLY]
+     → Simulation: mean_stellar_metallicity_mass
+
+✓─ Z_star_lion                                        [SIM ONLY]
+     → Simulation: mean_stellar_metallicity_lion
+
+
+────────────────────────────────────────────────────────────────────────────────
+IONIZING PROPERTIES
+────────────────────────────────────────────────────────────────────────────────
+
+✓─ L_ion                                              [SIM ONLY]
+     → Simulation: ionizing_luminosity
+
+✓✓ xi_ion                                             [BOTH]
+     → Simulation: xi_ion
+     → Observation: xi-ion
+
+
+────────────────────────────────────────────────────────────────────────────────
+UV PROPERTIES
+────────────────────────────────────────────────────────────────────────────────
+
+✓✓ M_UV/M_1500 (directions: 0-9)                      [BOTH]
+     → Simulation: MAB_1500_int, MAB_1500_dir_0...9
+     → Observation: M_1500
+
+─✓ M_FUV                                              [OBS ONLY]
+     → Observation: M_FUV
+
+─✓ M_NUV                                              [OBS ONLY]
+     → Observation: M_NUV
+
+✓✓ beta/UV_slope (directions: 0-9, mean, std)         [BOTH]
+     → Simulation: beta_int_sn, beta_dir_0...9_sn
+     → Observation: UV-beta
+
+─✓ beta1550                                           [OBS ONLY]
+     → Observation: beta1550
+
+
+────────────────────────────────────────────────────────────────────────────────
+DUST ATTENUATION
+────────────────────────────────────────────────────────────────────────────────
+
+✓─ E(B-V) (directions: 0-9, mean, std)                [SIM ONLY]
+     → Simulation: ebmv_dir_0...9
+
+─✓ E(B-V)_nebular                                     [OBS ONLY]
+     → Observation: E(B-V)_nebular
+
+─✓ E(B-V)_uv                                          [OBS ONLY]
+     → Observation: E(B-V)_uv
+
+─✓ E(B-V)_mw                                          [OBS ONLY]
+     → Observation: E(B-V)_mw
+
+
+────────────────────────────────────────────────────────────────────────────────
+HYDROGEN LINES
+────────────────────────────────────────────────────────────────────────────────
+
+✓✓ Lya/H_1215                                         [BOTH]
+     → Simulation: H__1_1215.67A_int
+     → Observation: H1r_1216A
+
+✓✓ Ha/H_6563 (directions: 0-9)                        [BOTH]
+     → Simulation: H__1_6562.80A_int, HI_6562.8_dir_0...9
+     → Observation: H1r_6563A
+
+✓✓ Hb/H_4861 (directions: 0-9)                        [BOTH]
+     → Simulation: H__1_4861.32A_int, HI_4861.32_dir_0...9
+     → Observation: H1r_4861A
+
+✓✓ Hg/H_4340 (directions: 0-9)                        [BOTH]
+     → Simulation: H__1_4340.46A_int, HI_4340.46_dir_0...9
+     → Observation: H1r_4341A
+
+✓✓ Hd/H_4101 (directions: 0-9)                        [BOTH]
+     → Simulation: H__1_4101.73A_int, HI_4101.73_dir_0...9
+     → Observation: H1r_4102A
+
+
+────────────────────────────────────────────────────────────────────────────────
+OXYGEN LINES
+────────────────────────────────────────────────────────────────────────────────
+
+✓✓ OII_3726 (directions: 0-9)                         [BOTH]
+     → Simulation: O__2_3726.03A_int, OII_3726.03_dir_0...9
+     → Observation: O2_3726A
+
+✓✓ OII_3729 (directions: 0-9)                         [BOTH]
+     → Simulation: O__2_3728.81A_int, OII_3728.81_dir_0...9
+     → Observation: O2_3729A
+
+✓✓ OIII_4363 (directions: 0-9)                        [BOTH]
+     → Simulation: O__3_4363.21A_int, OIII_4363.21_dir_0...9
+     → Observation: O3_4363A
+
+✓✓ OIII_4959 (directions: 0-9)                        [BOTH]
+     → Simulation: O__3_4958.91A_int, OIII_4958.91_dir_0...9
+     → Observation: O3_4959A
+
+✓✓ OIII_5007 (directions: 0-9)                        [BOTH]
+     → Simulation: O__3_5006.84A_int, OIII_5006.84_dir_0...9
+     → Observation: O3_5007A
+
+✓✓ OI_6300                                            [BOTH]
+     → Simulation: O__1_6300.30A_int
+     → Observation: O1_6300A
+
+
+────────────────────────────────────────────────────────────────────────────────
+NITROGEN LINES
+────────────────────────────────────────────────────────────────────────────────
+
+✓✓ NII_6548                                           [BOTH]
+     → Simulation: N__2_6548.05A_int
+     → Observation: N2_6548A
+
+✓✓ NII_6583 (directions: 0-9)                         [BOTH]
+     → Simulation: N__2_6583.45A_int, NII_6583.45_dir_0...9
+     → Observation: N2_6584A
+
+
+────────────────────────────────────────────────────────────────────────────────
+OTHER EMISSION LINES
+────────────────────────────────────────────────────────────────────────────────
+
+✓✓ NeIII_3869 (directions: 0-9)                       [BOTH]
+     → Simulation: Ne_3_3868.76A_int, NeIII_3868.76_dir_0...9
+     → Observation: Ne3_3869A
+
+✓✓ HeII_4686                                          [BOTH]
+     → Simulation: He_2_4685.68A_int
+     → Observation: He2r_4686A
+
+✓✓ SII_6716                                           [BOTH]
+     → Simulation: S__2_6716.44A_int
+     → Observation: S2_6716A
+
+✓✓ SII_6731                                           [BOTH]
+     → Simulation: S__2_6730.82A_int
+     → Observation: S2_6731A
+
+✓─ CIII_1907                                          [SIM ONLY]
+     → Simulation: C__3_1906.68A_int
+
+✓─ CIV_1549                                           [SIM ONLY]
+     → Simulation: C__4_1548.19A_int
+
+
+────────────────────────────────────────────────────────────────────────────────
+EQUIVALENT WIDTHS
+────────────────────────────────────────────────────────────────────────────────
+
+─✓ EW_Hb/EW_H4861                                     [OBS ONLY]
+     → Observation: EW(H1r_4861)
+
+─✓ EW_Ha/EW_H6563                                     [OBS ONLY]
+     → Observation: EW(H1r_6563)
+
+─✓ EW_OIII5007                                        [OBS ONLY]
+     → Observation: EW(O3_5007)
+
+─✓ EW_Lya/EW_H1216                                    [OBS ONLY]
+     → Observation: EW(H1r_1216)
+
+
+────────────────────────────────────────────────────────────────────────────────
+DIAGNOSTIC RATIOS
+────────────────────────────────────────────────────────────────────────────────
+
+✓✓ O32                                                [BOTH]
+     → Simulation: calculated: log(OIII/OII)
+     → Observation: calculated: log(OIII/OII)
+
+✓✓ log_NII_Ha/BPT_x                                   [BOTH]
+     → Simulation: calculated: log(NII/Ha)
+     → Observation: calculated: log(NII/Ha)
+
+✓✓ log_OIII_Hb/BPT_y                                  [BOTH]
+     → Simulation: calculated: log(OIII/Hb)
+     → Observation: calculated: log(OIII/Hb)
+
+✓─ R23                                                [SIM ONLY]
+     → Simulation: calculated: (OII+OIII)/Hb
+
+
+────────────────────────────────────────────────────────────────────────────────
+CONTINUUM LUMINOSITIES
+────────────────────────────────────────────────────────────────────────────────
+
+✓─ cont_XXXX (wavelengths: 1300-6583Å, directions: 0-9) [SIM ONLY]
+     → Simulation: cont_1300...6583_int, cont_XXXX_dir_0...9
+
+
+────────────────────────────────────────────────────────────────────────────────
+NEBULAR CONTINUUM
+────────────────────────────────────────────────────────────────────────────────
+
+✓─ nebc_XXXX (wavelengths: 1300-6583Å, directions: 0-9) [SIM ONLY]
+     → Simulation: nebc_1300...6583_int, nebc_XXXX_dir_0...9
+
+
+────────────────────────────────────────────────────────────────────────────────
+JWST FILTERS
+────────────────────────────────────────────────────────────────────────────────
+
+✓─ F_XXXW/M (filters: F070W-F480M, directions: 0-9)   [SIM ONLY]
+     → Simulation: F070W...F480M_int, F_XXXW_dir_0...9
+
+
+────────────────────────────────────────────────────────────────────────────────
+PHYSICAL DENSITIES & TEMPERATURES
+────────────────────────────────────────────────────────────────────────────────
+
+✓─ gas_density_3727                                   [SIM ONLY]
+     → Simulation: gas_density_3727
+
+✓─ gas_density_1908                                   [SIM ONLY]
+     → Simulation: gas_density_1908
+
+─✓ n_e_S2                                             [OBS ONLY]
+     → Observation: ne_S2
+
+─✓ n_e_O2                                             [OBS ONLY]
+     → Observation: ne_O2
+
+─✓ T_e_O3                                             [OBS ONLY]
+     → Observation: Te_O3
+
+
+────────────────────────────────────────────────────────────────────────────────
+DISTANCE MEASURES
+────────────────────────────────────────────────────────────────────────────────
+
+─✓ d_lum                                              [OBS ONLY]
+     → Observation: d_lum
+
+─✓ d_ang                                              [OBS ONLY]
+     → Observation: d_ang
+
+─✓ d_com                                              [OBS ONLY]
+     → Observation: d_com
+
+
+────────────────────────────────────────────────────────────────────────────────
+LYC DETECTION INFO (observations only)
+────────────────────────────────────────────────────────────────────────────────
+
+─✓ LyC_SNR                                            [OBS ONLY]
+     → Observation: SNR
+
+─✓ LyC_significance                                   [OBS ONLY]
+     → Observation: significance
+
+─✓ f_LyC                                              [OBS ONLY]
+     → Observation: f(LyC)
+
+─✓ L_LyC                                              [OBS ONLY]
+     → Observation: L(LyC)
+
+
+================================================================================
+SUMMARY STATISTICS
+================================================================================
+
+Total parameter groups: 81
+
+Available in BOTH datasets:         29 (35.8%)
+Available in SIMULATIONS ONLY:      28 (34.6%)
+Available in OBSERVATIONS ONLY:     24 (29.6%)
+
+================================================================================
+LEGEND
+================================================================================
+
+✓✓  Available in both simulations and observations
+✓─  Available in simulations only
+─✓  Available in observations only
+──  Not available (placeholder)
+
+================================================================================
+NOTES
+================================================================================
+
+• Directional parameters (directions: 0-9) are available for many emission
+  lines and physical properties in simulations.
+• Mean and std across directions are automatically calculated.
+• Some parameters are derived/calculated (e.g., O32, BPT ratios, sSFR).
+• Continuum luminosities available at wavelengths: 1300, 1400, 1500, 1600,
+  1700, 1800, 1900, 2000, 2500, 3000, 3727, 3869, 4102, 4341, 4363, 4861,
+  4959, 5008, 6563, 6583 Å (both integrated and directional).
+• JWST filters: F070W, F090W, F115W, F140M, F150W, F162M, F182M, F200W,
+  F210M, F250M, F277W, F300M, F335M, F356W, F360M, F410M, F430M, F444W,
+  F460M, F480M (both integrated and directional).
+
+================================================================================
+USAGE EXAMPLES
+================================================================================
+
+# Get parameter from both datasets
+muv_sim, muv_obs = data.get_parameter('M_UV', 'both')
+
+# Get directional parameter
+fesc_dir3 = data.get_parameter('f_esc_dir', 'sim', direction=3)
+
+# Get mean across directions
+beta_mean = data.get_parameter('beta', 'sim', direction='mean')
+
+# Get specific emission line
+ha_sim, ha_obs = data.get_parameter('Ha', 'both', direction=5)
+
+# Get continuum at specific wavelength
+cont_1500 = data.get_parameter('cont_1500', 'sim', direction=0)
+
+================================================================================

@@ -1,92 +1,267 @@
 #!/usr/bin/env python3
 """
-Example usage of the SPHINX analysis package.
+Example Usage: LyC Data Analysis
+=================================
+Demonstrates how to use LyCDataManager and LyCDiagnostics classes
+for analyzing SPHINX20 simulations vs LzLCS observations.
 
-This script demonstrates how to use the refactored package to analyze
-SPHINX20 simulation data and compare with observations.
+Author: Meriam Ezziati
+Date: January 2026
 """
-
 
 import sys
 
-from sphinx_analysis.sphinx_analysis.analyser import LyCEdiagnostics
+from sphinx_analysis.catalogues.CatalogueManager import CatalogueManager
+from sphinx_analysis.analyser.LyCDiagnostics import LyCDiagnostics
 
 sys.path.insert(0, '/home/mezziati/')  # Adjust this path as needed
 
-from sphinx_analysis import SimulationCatalogue, ObservationCatalogue, LyCEscapeAnalyzer
-from sphinx_analysis.plotting import (
-    plot_overview,
-    plot_detailed_correlations,
-    plot_fesc_histograms,
-    plot_fesc_vs_stellar_mass
+
+
+# Define paths
+sim_catalogue = '/home/mezziati/Documents/IAP/SPHINX20/data/all_basic_data.csv'
+obs_catalogue = '/home/mezziati/Documents/IAP/SPHINX20/data/flury.csv'
+output_dir =  '/home/mezziati/Documents/IAP/SPHINX20/sphinx_analysis/outputs/'
+
+
+# ============================================================
+# SETUP
+# ============================================================
+
+
+
+# ============================================================
+# INITIALIZE DATA MANAGER
+# ============================================================
+
+print("Initializing Data Manager...")
+data = CatalogueManager(sim_catalogue, obs_catalogue)
+
+# Print summary
+data.summary()
+
+# List all available parameters
+data.list_available_parameters()
+
+# ============================================================
+# INITIALIZE DIAGNOSTICS
+# ============================================================
+
+print("Initializing Diagnostics...")
+diag = LyCDiagnostics(data)
+
+# ============================================================
+# EXAMPLE 1: Basic 2D Comparison
+# ============================================================
+
+print("\n" + "="*70)
+print("EXAMPLE 1: M_UV vs f_esc colored by redshift")
+print("="*70)
+
+diag.plot_2d_comparison(
+    x_param='M_UV',
+    y_param='f_esc',
+    color_param='redshift',
+    figsize=(10, 8),
+    save_path=output_dir + 'muv_fesc_z.png'
 )
-from sphinx_analysis.io import save_column_names, export_summary
-from sphinx_analysis.analyser import *
-# Set your data paths
-DATA_PATH = '/home/mezziati/Documents/IAP/SPHINX20/data/'
-OUTPUT_PATH = '/home/mezziati/Documents/IAP/SPHINX20/sphinx_analysis/outputs/'
 
-def main():
-    """Main analysis pipeline using the new package structure."""
+# ============================================================
+# EXAMPLE 2: UV Slope vs Attenuation
+# ============================================================
 
-    print("=" * 70)
-    print("SPHINX20 LyC Escape Fraction Analysis")
-    print("=" * 70)
+print("\n" + "="*70)
+print("EXAMPLE 2: Beta vs E(B-V)")
+print("="*70)
 
-    # 1. Load data using the new catalogue classes
-    print("\n1. Loading catalogues...")
-    sim_cat = SimulationCatalogue(DATA_PATH + 'all_basic_data.csv')
-    obs_cat = ObservationCatalogue(DATA_PATH + 'flury.csv')
-    obs_old = ObservationCatalogue(DATA_PATH + 'previous_Lyc_measurements.csv')
+diag.plot_2d_comparison(
+    x_param='beta',
+    y_param='E(B-V)',
+    color_param='f_esc',
+    figsize=(10, 8),
+    save_path=output_dir + 'beta_ebv_fesc.png'
+)
 
-    # 2. Create analyzer
-    print("\n2. Creating analyzer...")
-    analyzer = LyCEscapeAnalyzer(sim_catalogue=sim_cat, obs_catalogue=obs_cat)
-    diagnostics = LyCEdiagnostics(sim_catalogue=sim_cat, obs_catalogue=obs_cat)
+# ============================================================
+# EXAMPLE 3: Stellar Mass - SFR Relation
+# ============================================================
 
-    # 3. Print summary statistics
-    print("\n3. Summary statistics...")
-    analyzer.summary_statistics()
+print("\n" + "="*70)
+print("EXAMPLE 3: Stellar Mass vs SFR")
+print("="*70)
 
-    # 4. Analyze redshift evolution
-    print("\n4. Redshift evolution...")
-    z_evolution = analyzer.redshift_evolution()
-    print(z_evolution)
+diag.plot_2d_comparison(
+    x_param='stellar_mass',
+    y_param='SFR',
+    color_param='f_esc',
+    log_x=False,
+    log_y=True,
+    figsize=(10, 8),
+    save_path=output_dir + 'mass_sfr.png'
+)
 
-    # 5. Calculate correlations
-    print("\n5. Calculating correlations...")
-    correlations = analyzer.correlations()
-    print("\nCorrelation results:")
-    print(correlations)
+# ============================================================
+# EXAMPLE 4: Histogram Comparison
+# ============================================================
 
-    # 6. Analyze high escapers
-    print("\n6. Analyzing high escapers...")
-    high_esc, low_esc = analyzer.analyze_high_escapers(threshold=0.1)
+print("\n" + "="*70)
+print("EXAMPLE 4: Distribution of f_esc")
+print("="*70)
 
-    # 7. Create plots
-    print("\n7. Creating plots...")
+diag.plot_histogram_comparison(
+    param='f_esc',
+    bins=50,
+    figsize=(10, 6),
+    save_path=output_dir + 'fesc_histogram.png'
+)
 
-    # Overview plot
-    #plot_overview(sim_cat, save_path=OUTPUT_PATH + 'overview.png')
+# ============================================================
+# EXAMPLE 5: BPT Diagram
+# ============================================================
 
-    # Detailed correlations
-    #plot_detailed_correlations(sim_cat, save_path=OUTPUT_PATH + 'correlations.png')
+print("\n" + "="*70)
+print("EXAMPLE 5: BPT Diagram")
+print("="*70)
 
-    # Histogram comparison
-    plot_fesc_histograms(sim_cat, obs_cat, save_path=OUTPUT_PATH + 'histograms.png')
+diag.plot_bpt_diagram(
+    figsize=(10, 8),
+    save_path=output_dir + 'bpt_diagram.png'
+)
 
-    # Mass comparison
-    plot_fesc_vs_stellar_mass(sim_cat, obs_cat, save_path=OUTPUT_PATH + 'mass_comparison.png')
+# ============================================================
+# EXAMPLE 6: Directional Analysis
+# ============================================================
 
-    # 8. Export results
-    print("\n8. Exporting results...")
-    save_column_names(sim_cat, obs_cat, OUTPUT_PATH + 'column_names.txt')
-    export_summary(sim_cat, obs_cat, correlations, OUTPUT_PATH + 'summary.txt')
+print("\n" + "="*70)
+print("EXAMPLE 6: Directional Analysis of f_esc")
+print("="*70)
 
-    print("\n" + "=" * 70)
-    print("ANALYSIS COMPLETE!")
-    print("=" * 70)
+diag.plot_directional_comparison(
+    x_param='M_UV',
+    y_param='f_esc_dir',
+    figsize=(14, 8),
+    save_path=output_dir + 'directional_muv_fesc.png'
+)
 
+# ============================================================
+# EXAMPLE 7: Multiparameter Grid
+# ============================================================
 
-if __name__ == "__main__":
-    main()
+print("\n" + "="*70)
+print("EXAMPLE 7: Multiparameter Grid")
+print("="*70)
+
+params_to_compare = ['f_esc', 'M_UV', 'stellar_mass', 'beta', 'metallicity']
+
+diag.plot_multiparameter_grid(
+    params=params_to_compare,
+    figsize=(15, 15),
+    save_path=output_dir + 'multiparameter_grid.png'
+)
+
+# ============================================================
+# EXAMPLE 8: Correlation Analysis
+# ============================================================
+
+print("\n" + "="*70)
+print("EXAMPLE 8: Correlation Analysis")
+print("="*70)
+
+correlation_params = [
+    'M_UV', 'beta', 'stellar_mass', 'SFR', 'sSFR',
+    'metallicity', 'xi_ion', 'age_star', 'E(B-V)'
+]
+
+corr_results = diag.correlations_summary(
+    param_list=correlation_params,
+    reference_param='f_esc'
+)
+
+# Save correlation results
+corr_results.to_csv(output_dir + 'fesc_correlations.csv', index=False)
+
+# ============================================================
+# EXAMPLE 9: Direct Data Access
+# ============================================================
+
+print("\n" + "="*70)
+print("EXAMPLE 9: Direct Data Access for Custom Analysis")
+print("="*70)
+
+# Get specific parameters
+muv_sim, muv_obs = data.get_parameter('M_UV', 'both')
+fesc_sim, fesc_obs = data.get_parameter('f_esc', 'both')
+
+# Get mask for valid data
+mask_sim = data.get_valid_mask('M_UV', 'f_esc', dataset='sim')
+mask_obs = data.get_valid_mask('M_UV', 'f_esc', dataset='obs')
+
+print(f"\nValid simulation points: {mask_sim.sum()}")
+print(f"Valid observation points: {mask_obs.sum()}")
+
+# Do custom analysis
+import numpy as np
+print(f"\nSimulation f_esc statistics:")
+print(f"  Mean: {fesc_sim[mask_sim].mean():.2f}%")
+print(f"  Median: {fesc_sim[mask_sim].median():.2f}%")
+print(f"  Std: {fesc_sim[mask_sim].std():.2f}%")
+
+# ============================================================
+# EXAMPLE 10: Directional Parameter with Specific Direction
+# ============================================================
+
+print("\n" + "="*70)
+print("EXAMPLE 10: Specific Direction Analysis")
+print("="*70)
+
+# Compare f_esc in direction 0 vs direction 5
+diag.plot_2d_comparison(
+    x_param='M_UV',
+    y_param='f_esc_dir',
+    direction=0,
+    figsize=(10, 8),
+    save_path=output_dir + 'muv_fesc_dir0.png'
+)
+
+diag.plot_2d_comparison(
+    x_param='M_UV',
+    y_param='f_esc_dir',
+    direction=5,
+    figsize=(10, 8),
+    save_path=output_dir + 'muv_fesc_dir5.png'
+)
+
+# ============================================================
+# EXAMPLE 11: Emission Line Diagnostics
+# ============================================================
+
+print("\n" + "="*70)
+print("EXAMPLE 11: O32 vs Metallicity")
+print("="*70)
+
+diag.plot_2d_comparison(
+    x_param='metallicity',
+    y_param='O32',
+    color_param='f_esc',
+    figsize=(10, 8),
+    save_path=output_dir + 'o32_metallicity.png'
+)
+
+# ============================================================
+# EXAMPLE 12: Multiple Histogram Comparisons
+# ============================================================
+
+print("\n" + "="*70)
+print("EXAMPLE 12: Multiple Distributions")
+print("="*70)
+
+for param in ['f_esc', 'beta', 'metallicity', 'xi_ion']:
+    diag.plot_histogram_comparison(
+        param=param,
+        bins=30,
+        save_path=output_dir + f'{param}_hist.png'
+    )
+
+print("\n" + "="*70)
+print("ANALYSIS COMPLETE!")
+print("="*70)
