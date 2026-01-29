@@ -17,6 +17,10 @@ from typing import Optional, Union
 from ..catalogues.CatalogueManager import CatalogueManager
 
 
+class LyCDiagnosticsError(Exception):
+    pass
+
+
 class LyCDiagnostics:
     """
     Diagnostic and visualization tools for LyC escape fraction analysis.
