@@ -13,7 +13,8 @@ import numpy as np
 import pandas as pd
 from typing import Tuple, Optional, Union
 
-
+class CatalogueManagerError(Exception):
+    pass
 class CatalogueManager:
     """
     Data manager for SPHINX20 simulations and LzLCS observations.
