@@ -55,11 +55,26 @@ diag = LyCDiagnostics(data)
 # ============================================================
 
 diag.plot_2d_all_directions(
+    'age_star',           # Gets f_esc_dir_0 to f_esc_dir_9
+    'E(B-V)',            # Gets M_UV for all directions
+    color_param='f_esc',
+    save_path=output_dir + 'age_E(B-V)_fesc_all_directions.png'
+)
+
+diag.plot_2d_all_directions(
     'sSFR',           # Gets f_esc_dir_0 to f_esc_dir_9
     'E(B-V)',            # Gets M_UV for all directions
     color_param='f_esc',
-    save_path=output_dir + 'sSFR_E(B-V)_fesc_all_directions.png'
+    save_path=output_dir + 'age_E(B-V)_fesc_all_directions.png'
 )
+diag.plot_2d_all_directions(
+    'log10(zeta_ISM)',
+    'E(B-V)',
+    color_param='f_esc',
+    save_path=output_dir + 'zeta_E(B-V)_fesc_all_directions.png'
+)
+
+
 diag.plot_2d_all_directions(
     'age_star',           # Gets f_esc_dir_0 to f_esc_dir_9
     'beta',            # Gets M_UV for all directions
@@ -67,16 +82,22 @@ diag.plot_2d_all_directions(
     save_path=output_dir + 'age_beta_fesc_all_directions.png'
 )
 diag.plot_2d_all_directions(
+    'sSFR',           # Gets f_esc_dir_0 to f_esc_dir_9
+    'beta',            # Gets M_UV for all directions
+    color_param='f_esc',
+    save_path=output_dir + 'sSFR_beta_fesc_all_directions.png'
+)
+diag.plot_2d_all_directions(
+    'age_star',           # Gets f_esc_dir_0 to f_esc_dir_9
+    'beta',            # Gets M_UV for all directions
+    color_param='f_esc',
+    save_path=output_dir + 'age_star_beta_fesc_all_directions.png'
+)
+diag.plot_2d_all_directions(
     'log10(zeta_ISM)',           # Gets f_esc_dir_0 to f_esc_dir_9
     'beta',            # Gets M_UV for all directions
     color_param='f_esc',
     save_path=output_dir + 'zeta_beta_fesc_all_directions.png'
-)
-diag.plot_2d_all_directions(
-    'log10(zeta_ISM)',
-    'E(B-V)',
-    color_param='f_esc',
-    save_path=output_dir + 'zeta_E(B-V)_fesc_all_directions.png'
 )
 
 print("\n" + "="*70)
