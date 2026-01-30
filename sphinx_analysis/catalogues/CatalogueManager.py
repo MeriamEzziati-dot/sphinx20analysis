@@ -13,8 +13,11 @@ import numpy as np
 import pandas as pd
 from typing import Tuple, Optional, Union
 
+
 class CatalogueManagerError(Exception):
     pass
+
+
 class CatalogueManager:
     """
     Data manager for SPHINX20 simulations and LzLCS observations.
@@ -98,6 +101,38 @@ class CatalogueManager:
             self.df['log_NII_Ha'] = np.log10(self.df['NII_6583.45_int'] / self.df['HI_6562.8_int'])
         if 'OIII_5006.84_int' in self.df.columns and 'HI_4861.32_int' in self.df.columns:
             self.df['log_OIII_Hb'] = np.log10(self.df['OIII_5006.84_int'] / self.df['HI_4861.32_int'])
+
+        # Calculate zeta_ISM = E(B-V) * <n_H>_[OIII]
+        # Create directional versions since E(B-V) is directional
+        if 'gas_density_3727' in self.df.columns and \
+                'OIII_4958.91_int' in self.df.columns and \
+                'OIII_5006.84_int' in self.df.columns:
+
+            # Get hydrogen density (not directional)
+            n_H = self.df['gas_density_3727']
+
+            # Get [OIII] luminosities (4959Å + 5007Å doublet)
+            oiii_total = self.df['OIII_4958.91_int'] + self.df['OIII_5006.84_int']
+
+            # Calculate [OIII]-weighted hydrogen density (not directional)
+            self.df['n_H_weighted_OIII'] = n_H * oiii_total
+
+            # Calculate zeta_ISM for each direction (since E(B-V) is directional)
+            ebv_cols = [col for col in self.df.columns if col.startswith('ebmv_dir_') and col[-1].isdigit()]
+            if ebv_cols:
+                for i in range(10):
+                    ebv_col = f'ebmv_dir_{i}'
+                    if ebv_col in self.df.columns:
+                        # zeta_ISM for this direction
+                        self.df[f'zeta_ISM_dir_{i}'] = self.df[ebv_col] * self.df['n_H_weighted_OIII']
+
+                # Also calculate mean and std across directions
+                zeta_cols = [f'zeta_ISM_dir_{i}' for i in range(10) if f'zeta_ISM_dir_{i}' in self.df.columns]
+                if zeta_cols:
+                    self.df['zeta_ISM_mean'] = self.df[zeta_cols].mean(axis=1)
+                    self.df['zeta_ISM_std'] = self.df[zeta_cols].std(axis=1)
+                    # Also create 'zeta_ISM' as alias for mean
+                    self.df['zeta_ISM'] = self.df['zeta_ISM_mean']
 
     def get_parameter(self, param_name: str, dataset: str = 'both',
                       direction: Optional[Union[int, str]] = None) -> Union[Tuple[pd.Series, pd.Series], pd.Series]:
@@ -286,6 +321,23 @@ class CatalogueManager:
         elif param_name == "E(B-V)_uv":
             sim_data = None
             obs_data = self.observations['E(B-V)_uv']
+
+        elif param_name == "zeta_ISM":
+            # zeta_ISM = E(B-V) * <n_H>_[OIII] (directional)
+            if direction is None or direction == 'mean':
+                sim_data = self.df.get('zeta_ISM_mean', self.df.get('zeta_ISM', None))
+            elif direction == 'std':
+                sim_data = self.df.get('zeta_ISM_std', None)
+            elif isinstance(direction, int) and 0 <= direction <= 9:
+                sim_data = self.df.get(f'zeta_ISM_dir_{direction}', None)
+            else:
+                sim_data = None
+            obs_data = None
+
+        elif param_name == "n_H_weighted_OIII":
+            # [OIII]-weighted hydrogen density (not directional)
+            sim_data = self.df.get('n_H_weighted_OIII', None)
+            obs_data = None
 
         # ============================================================
         # EMISSION LINES - HYDROGEN

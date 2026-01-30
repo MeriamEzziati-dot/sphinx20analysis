@@ -54,6 +54,13 @@ diag = LyCDiagnostics(data)
 # EXAMPLE 1: Basic 2D Comparison
 # ============================================================
 
+diag.plot_2d_all_directions(
+    'log10(zeta_ISM)',           # Gets f_esc_dir_0 to f_esc_dir_9
+    'beta',            # Gets M_UV for all directions
+    color_param='f_esc',
+    save_path=output_dir + 'zeta_beta_fesc_all_directions.png'
+)
+
 print("\n" + "="*70)
 print("EXAMPLE 1: M_UV vs f_esc colored by redshift")
 print("="*70)
@@ -246,6 +253,16 @@ diag.plot_2d_comparison(
     figsize=(10, 8),
     save_path=output_dir + 'o32_metallicity.png'
 )
+
+
+diag.plot_2d_comparison(
+    x_param='log10(zeta_ISM)',
+    y_param='beta',
+    color_param='f_esc',
+    figsize=(10, 8),
+    save_path=output_dir + 'zeta_ism_beta_f_esc.png'
+)
+
 
 # ============================================================
 # EXAMPLE 12: Multiple Histogram Comparisons
