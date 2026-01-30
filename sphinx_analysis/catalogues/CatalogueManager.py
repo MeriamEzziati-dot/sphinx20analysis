@@ -91,8 +91,8 @@ class CatalogueManager:
             self.df['O32'] = np.log10(oiii / oii)
 
         # Calculate sSFR and log10(sSFR)
-        self.df['sSFR'] = np.log10(self.df['sfr_10'] / (10 ** self.df['stellar_mass']))
-        self.df['log10(sSFR)'] = self.df['sSFR']  # Alias for consistency
+        self.df['sSFR'] = (self.df['sfr_10'] / (10 ** self.df['stellar_mass']))
+        self.df['log10(sSFR)'] = np.log10(self.df['sSFR'])  # Alias for consistency
 
         # Calculate 12+log(O/H) from gas metallicity (assuming solar O/H = 8.69)
         self.df['12+log(O/H)'] = self.df['gas_metallicity'] + 8.69
