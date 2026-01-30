@@ -53,6 +53,13 @@ diag = LyCDiagnostics(data)
 # ============================================================
 # EXAMPLE 1: Basic 2D Comparison
 # ============================================================
+
+diag.plot_2d_all_directions(
+    'sSFR',           # Gets f_esc_dir_0 to f_esc_dir_9
+    'E(B-V)',            # Gets M_UV for all directions
+    color_param='f_esc',
+    save_path=output_dir + 'sSFR_E(B-V)_fesc_all_directions.png'
+)
 diag.plot_2d_all_directions(
     'age_star',           # Gets f_esc_dir_0 to f_esc_dir_9
     'beta',            # Gets M_UV for all directions

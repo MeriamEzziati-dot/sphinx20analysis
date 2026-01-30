@@ -232,7 +232,7 @@ class CatalogueManager:
             obs_data = None
 
         elif param_name == "sSFR":
-            sim_data = self.df['sSFR']
+            sim_data = np.log10(self.df['sSFR'])
             obs_data = self.observations['log10(SFR)-UV'] - self.observations['log10(Mstar)']
 
         elif param_name == "log10(sSFR)":
