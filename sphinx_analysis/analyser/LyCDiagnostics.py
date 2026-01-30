@@ -302,7 +302,7 @@ class LyCDiagnostics:
             if color_param and c_data is not None:
                 scatter = ax.scatter(
                     x_data[mask], y_data[mask],
-                    c=c_data[mask],
+                    c=(c_data[mask]),
                     cmap='viridis',
                     alpha=0.5,
                     s=30,

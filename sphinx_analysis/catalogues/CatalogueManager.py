@@ -90,8 +90,9 @@ class CatalogueManager:
             oii = self.df['OII_3726.03_int'] + self.df['OII_3728.81_int']
             self.df['O32'] = np.log10(oiii / oii)
 
-        # Calculate sSFR
+        # Calculate sSFR and log10(sSFR)
         self.df['sSFR'] = np.log10(self.df['sfr_10'] / (10 ** self.df['stellar_mass']))
+        self.df['log10(sSFR)'] = self.df['sSFR']  # Alias for consistency
 
         # Calculate 12+log(O/H) from gas metallicity (assuming solar O/H = 8.69)
         self.df['12+log(O/H)'] = self.df['gas_metallicity'] + 8.69
@@ -102,37 +103,53 @@ class CatalogueManager:
         if 'OIII_5006.84_int' in self.df.columns and 'HI_4861.32_int' in self.df.columns:
             self.df['log_OIII_Hb'] = np.log10(self.df['OIII_5006.84_int'] / self.df['HI_4861.32_int'])
 
-        # Calculate zeta_ISM = E(B-V) * <n_H>_[OIII]
+        # Calculate log10(f_esc) for directional values
+        fesc_dir_cols = [col for col in self.df.columns if col.startswith('fesc_dir_') and col[-1].isdigit()]
+        if fesc_dir_cols:
+            for i in range(10):
+                fesc_col = f'fesc_dir_{i}'
+                if fesc_col in self.df.columns:
+                    # log10(f_esc) for this direction
+                    self.df[f'log10(f_esc)_dir_{i}'] = np.log10(self.df[fesc_col])
+            
+            # Calculate mean and std for log10(f_esc)
+            log_fesc_cols = [f'log10(f_esc)_dir_{i}' for i in range(10) if f'log10(f_esc)_dir_{i}' in self.df.columns]
+            if log_fesc_cols:
+                self.df['log10(f_esc)_mean'] = self.df[log_fesc_cols].mean(axis=1)
+                self.df['log10(f_esc)_std'] = self.df[log_fesc_cols].std(axis=1)
+                # Also create 'log10(f_esc)' as alias for mean
+                self.df['log10(f_esc)'] = self.df['log10(f_esc)_mean']
+
+        # Calculate zeta_ISM = E(B-V) * n_H (in cm^-3)
         # Create directional versions since E(B-V) is directional
-        if 'gas_density_3727' in self.df.columns and \
-                'OIII_4958.91_int' in self.df.columns and \
-                'OIII_5006.84_int' in self.df.columns:
-
-            # Get hydrogen density (not directional)
+        if 'gas_density_3727' in self.df.columns:
+            # Get hydrogen density (not directional) - already in log10
             n_H = self.df['gas_density_3727']
-
-            # Get [OIII] luminosities (4959Å + 5007Å doublet)
-            oiii_total = self.df['OIII_4958.91_int'] + self.df['OIII_5006.84_int']
-
-            # Calculate [OIII]-weighted hydrogen density (not directional)
-            self.df['n_H_weighted_OIII'] = n_H * oiii_total
-
+            
             # Calculate zeta_ISM for each direction (since E(B-V) is directional)
             ebv_cols = [col for col in self.df.columns if col.startswith('ebmv_dir_') and col[-1].isdigit()]
             if ebv_cols:
                 for i in range(10):
                     ebv_col = f'ebmv_dir_{i}'
                     if ebv_col in self.df.columns:
-                        # zeta_ISM for this direction
-                        self.df[f'zeta_ISM_dir_{i}'] = self.df[ebv_col] * self.df['n_H_weighted_OIII']
-
+                        # zeta_ISM = E(B-V) * n_H, where n_H is in log10
+                        # Result: zeta_ISM in cm^-3
+                        self.df[f'zeta_ISM_dir_{i}'] = self.df[ebv_col] * (10 ** n_H)
+                        self.df[f'log10(zeta_ISM)_dir_{i}'] = np.log10(self.df[f'zeta_ISM_dir_{i}'])
+                
                 # Also calculate mean and std across directions
                 zeta_cols = [f'zeta_ISM_dir_{i}' for i in range(10) if f'zeta_ISM_dir_{i}' in self.df.columns]
+                log_zeta_cols = [f'log10(zeta_ISM)_dir_{i}' for i in range(10) if f'log10(zeta_ISM)_dir_{i}' in self.df.columns]
+                
                 if zeta_cols:
                     self.df['zeta_ISM_mean'] = self.df[zeta_cols].mean(axis=1)
                     self.df['zeta_ISM_std'] = self.df[zeta_cols].std(axis=1)
-                    # Also create 'zeta_ISM' as alias for mean
-                    self.df['zeta_ISM'] = self.df['zeta_ISM_mean']
+                    self.df['zeta_ISM'] = self.df['zeta_ISM_mean']  # Alias
+                
+                if log_zeta_cols:
+                    self.df['log10(zeta_ISM)_mean'] = self.df[log_zeta_cols].mean(axis=1)
+                    self.df['log10(zeta_ISM)_std'] = self.df[log_zeta_cols].std(axis=1)
+                    self.df['log10(zeta_ISM)'] = self.df['log10(zeta_ISM)_mean']  # Alias
 
     def get_parameter(self, param_name: str, dataset: str = 'both',
                       direction: Optional[Union[int, str]] = None) -> Union[Tuple[pd.Series, pd.Series], pd.Series]:
@@ -218,25 +235,55 @@ class CatalogueManager:
             sim_data = self.df['sSFR']
             obs_data = self.observations['log10(SFR)-UV'] - self.observations['log10(Mstar)']
 
+        elif param_name == "log10(sSFR)":
+            sim_data = self.df['log10(sSFR)']
+            obs_data = self.observations['log10(SFR)-UV'] - self.observations['log10(Mstar)']
+
         # ============================================================
         # LYC ESCAPE FRACTION
         # ============================================================
 
         elif param_name == "f_esc":
-            sim_data = 10 ** self.df['f_esc'] * 100  # Percentage
+            # Return log10(f_esc) as default
+            if direction is None or direction == 'mean':
+                sim_data = self.df.get('log10(f_esc)_mean', self.df.get('log10(f_esc)', self.df['f_esc']))
+            elif direction == 'std':
+                sim_data = self.df.get('log10(f_esc)_std', None)
+            elif isinstance(direction, int) and 0 <= direction <= 9:
+                sim_data = self.df.get(f'log10(f_esc)_dir_{direction}', None)
+            else:
+                sim_data = self.df['f_esc']
+            obs_data = np.log10(self.observations['f_esc(LyC)-UVfit'])
+
+        elif param_name == "log10(f_esc)":
+            # Explicit log10(f_esc) request
+            if direction is None or direction == 'mean':
+                sim_data = self.df.get('log10(f_esc)_mean', self.df.get('log10(f_esc)', self.df['f_esc']))
+            elif direction == 'std':
+                sim_data = self.df.get('log10(f_esc)_std', None)
+            elif isinstance(direction, int) and 0 <= direction <= 9:
+                sim_data = self.df.get(f'log10(f_esc)_dir_{direction}', None)
+            else:
+                sim_data = self.df['f_esc']
+            obs_data = np.log10(self.observations['f_esc(LyC)-UVfit'])
+
+        elif param_name == "f_esc_percent":
+            # For those who still want percentage
+            sim_data = 10 ** self.df['f_esc'] * 100
             obs_data = self.observations['f_esc(LyC)-UVfit'] * 100
 
         elif param_name == "f_esc_log":
+            # Legacy alias
             sim_data = self.df['f_esc']
             obs_data = np.log10(self.observations['f_esc(LyC)-UVfit'])
 
         elif param_name == "f_esc_dir":
             if direction is None or direction == 'mean':
-                sim_data = self.df['fesc_dir_mean'] * 100
+                sim_data = self.df.get('log10(f_esc)_mean', self.df['fesc_dir_mean'])
             elif direction == 'std':
-                sim_data = self.df['fesc_dir_std'] * 100
+                sim_data = self.df.get('log10(f_esc)_std', self.df['fesc_dir_std'])
             elif isinstance(direction, int) and 0 <= direction <= 9:
-                sim_data = self.df[f'fesc_dir_{direction}'] * 100
+                sim_data = self.df.get(f'log10(f_esc)_dir_{direction}', self.df[f'fesc_dir_{direction}'])
             obs_data = None
 
         elif param_name == "f_esc_Lya":
@@ -264,7 +311,7 @@ class CatalogueManager:
         # ============================================================
 
         elif param_name == "age_star":
-            sim_data = self.df['mean_stellar_age_mass']
+            sim_data = self.df['mean_stellar_age_lion']
             obs_data = None
 
         # ============================================================
@@ -307,11 +354,11 @@ class CatalogueManager:
 
         elif param_name == "E(B-V)":
             if direction is None or direction == 'mean':
-                sim_data = self.df['ebmv_dir_mean']
+                sim_data = np.log10(self.df['ebmv_dir_mean'])
             elif direction == 'std':
-                sim_data = self.df['ebmv_dir_std']
+                sim_data = np.log10(self.df['ebmv_dir_std'])
             elif isinstance(direction, int) and 0 <= direction <= 9:
-                sim_data = self.df[f'ebmv_dir_{direction}']
+                sim_data = np.log10(self.df[f'ebmv_dir_{direction}'])
             obs_data = None
 
         elif param_name == "E(B-V)_nebular":
@@ -323,7 +370,31 @@ class CatalogueManager:
             obs_data = self.observations['E(B-V)_uv']
 
         elif param_name == "zeta_ISM":
-            # zeta_ISM = E(B-V) * <n_H>_[OIII] (directional)
+            # zeta_ISM returns log10 by default
+            if direction is None or direction == 'mean':
+                sim_data = self.df.get('log10(zeta_ISM)_mean', self.df.get('log10(zeta_ISM)', None))
+            elif direction == 'std':
+                sim_data = self.df.get('log10(zeta_ISM)_std', None)
+            elif isinstance(direction, int) and 0 <= direction <= 9:
+                sim_data = self.df.get(f'log10(zeta_ISM)_dir_{direction}', None)
+            else:
+                sim_data = None
+            obs_data = None
+
+        elif param_name == "log10(zeta_ISM)":
+            # log10(zeta_ISM) - explicit alias
+            if direction is None or direction == 'mean':
+                sim_data = self.df.get('log10(zeta_ISM)_mean', self.df.get('log10(zeta_ISM)', None))
+            elif direction == 'std':
+                sim_data = self.df.get('log10(zeta_ISM)_std', None)
+            elif isinstance(direction, int) and 0 <= direction <= 9:
+                sim_data = self.df.get(f'log10(zeta_ISM)_dir_{direction}', None)
+            else:
+                sim_data = None
+            obs_data = None
+
+        elif param_name == "zeta_ISM_linear":
+            # Linear zeta_ISM if you really need it
             if direction is None or direction == 'mean':
                 sim_data = self.df.get('zeta_ISM_mean', self.df.get('zeta_ISM', None))
             elif direction == 'std':
@@ -334,9 +405,9 @@ class CatalogueManager:
                 sim_data = None
             obs_data = None
 
-        elif param_name == "n_H_weighted_OIII":
-            # [OIII]-weighted hydrogen density (not directional)
-            sim_data = self.df.get('n_H_weighted_OIII', None)
+        elif param_name == "n_H":
+            # Hydrogen density (not directional)
+            sim_data = self.df.get('gas_density_3727', None)
             obs_data = None
 
         # ============================================================
