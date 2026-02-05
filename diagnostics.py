@@ -23,7 +23,6 @@ sim_catalogue = '/home/mezziati/Documents/IAP/SPHINX20/data/all_basic_data.csv'
 obs_catalogue = '/home/mezziati/Documents/IAP/SPHINX20/data/flury.csv'
 output_dir =  '/home/mezziati/Documents/IAP/SPHINX20/sphinx_analysis/outputs/'
 
-
 # ============================================================
 # SETUP
 # ============================================================
@@ -321,3 +320,4 @@ for param in ['f_esc', 'beta', 'metallicity', 'xi_ion']:
 print("\n" + "="*70)
 print("ANALYSIS COMPLETE!")
 print("="*70)
+
