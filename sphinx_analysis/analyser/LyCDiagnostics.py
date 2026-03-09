@@ -16,7 +16,6 @@ import seaborn as sns
 from typing import Optional, Union
 from ..catalogues.CatalogueManager import CatalogueManager
 
-
 class LyCDiagnosticsError(Exception):
     pass
 
@@ -674,3 +673,428 @@ class LyCDiagnostics:
         print("=" * 70 + "\n")
 
         return df_results
+
+    def plot_2d_all_directions_all(
+            self,
+            x_param: str,
+            y_param: str,
+            color_param=None,
+            obs_threshold: float = 0.1,
+            figsize=(10, 8),
+            log_x: bool = False,
+            log_y: bool = False,
+            xlim=None,
+            ylim=None,
+            save_path=None,
+            extra_obs_paths: dict = None,
+    ):
+        """
+        Create 2D scatter plot where each direction is treated as a separate point.
+
+        Overlays additional observational catalogues when their paths are supplied.
+
+        Parameters
+        ----------
+        x_param, y_param : str
+            Parameters for x and y axes.
+        color_param : str, optional
+            Parameter for color coding simulations; drives filled/hollow split
+            for LzLCS observations.
+        obs_threshold : float
+            Threshold on color_param for LzLCS filled vs hollow markers.
+        figsize, log_x, log_y, xlim, ylim, save_path : same as before.
+        extra_obs_paths : dict, optional
+            Paths to the additional observational tables. Keys: 'sxds', 'bassett',
+            'laces', 'highz'. Any key can be omitted; that catalogue is skipped.
+
+            Example::
+
+                extra_obs_paths={
+                    'sxds':    'path/to/SXDS.csv',
+                    'bassett': 'path/to/bassett.csv',
+                    'laces':   'path/to/LeakersLACES.csv',
+                    'highz':   'path/to/misc_highz.csv',
+                }
+        """
+        fig, ax = plt.subplots(figsize=figsize)
+
+        print("\n" + "=" * 70)
+        if color_param:
+            print(f"{x_param} vs {y_param} (colored by {color_param}) - ALL DIRECTIONS")
+        else:
+            print(f"{x_param} vs {y_param} - ALL DIRECTIONS")
+        print("=" * 70)
+
+        # ------------------------------------------------------------------
+        # 1. Simulation data across all directions
+        # ------------------------------------------------------------------
+        x_sim_all, y_sim_all, c_sim_all = [], [], []
+
+        try:
+            for direction in range(10):
+                try:
+                    x_sim_dir = self.data.get_parameter(x_param, 'sim', direction=direction)
+                    if x_sim_dir is None:
+                        x_sim_dir = self.data.get_parameter(x_param, 'sim')
+
+                    y_sim_dir = self.data.get_parameter(y_param, 'sim', direction=direction)
+                    if y_sim_dir is None:
+                        y_sim_dir = self.data.get_parameter(y_param, 'sim')
+
+                    if color_param:
+                        c_sim_dir = self.data.get_parameter(color_param, 'sim', direction=direction)
+                        if c_sim_dir is None:
+                            c_sim_dir = self.data.get_parameter(color_param, 'sim')
+                    else:
+                        c_sim_dir = None
+
+                    if x_sim_dir is not None and y_sim_dir is not None:
+                        x_sim_all.append(x_sim_dir)
+                        y_sim_all.append(y_sim_dir)
+                        if c_sim_dir is not None:
+                            c_sim_all.append(c_sim_dir)
+
+                except Exception as e:
+                    print(f"  ⚠ Warning: Could not get direction {direction}: {e}")
+                    continue
+
+            if not x_sim_all or not y_sim_all:
+                print("  ✗ Error: No valid simulation data found")
+                return
+
+            x_sim = pd.concat(x_sim_all, ignore_index=True)
+            y_sim = pd.concat(y_sim_all, ignore_index=True)
+            c_sim = pd.concat(c_sim_all, ignore_index=True) if c_sim_all else None
+
+            mask_sim = x_sim.notna() & y_sim.notna()
+            if c_sim is not None:
+                mask_sim &= c_sim.notna()
+
+            print(f"  • Simulation points across all directions: {mask_sim.sum()}")
+            print(f"  • Points per direction (avg): {mask_sim.sum() / 10:.1f}")
+
+            # ------------------------------------------------------------------
+            # 2. Plot simulations
+            # ------------------------------------------------------------------
+            if color_param and c_sim is not None:
+                scatter_sim = ax.scatter(
+                    x_sim[mask_sim], y_sim[mask_sim],
+                    c=c_sim[mask_sim],
+                    cmap='viridis', alpha=0.5, s=30,
+                    edgecolors='none', label='SPHINX20', zorder=2,
+                )
+                cbar = plt.colorbar(scatter_sim, ax=ax)
+                cbar.set_label(color_param, fontsize=12)
+            else:
+                ax.scatter(
+                    x_sim[mask_sim], y_sim[mask_sim],
+                    alpha=0.5, s=30, color='steelblue',
+                    edgecolors='none', label='SPHINX20', zorder=2,
+                )
+
+            # ------------------------------------------------------------------
+            # 3. LzLCS observations
+            # ------------------------------------------------------------------
+            try:
+                _, x_obs = self.data.get_parameter(x_param, 'both')
+                _, y_obs = self.data.get_parameter(y_param, 'both')
+                _, c_obs = (self.data.get_parameter(color_param, 'both')
+                            if color_param else (None, None))
+            except Exception:
+                x_obs = y_obs = c_obs = None
+
+            has_obs = (x_obs is not None and y_obs is not None
+                       and len(x_obs) > 0 and len(y_obs) > 0)
+
+            if has_obs:
+                if color_param and c_obs is not None:
+                    mask_obs_base = x_obs.notna() & y_obs.notna() & c_obs.notna()
+                    above = mask_obs_base & (c_obs >= np.log10(obs_threshold))
+                    below = mask_obs_base & (c_obs < np.log10(obs_threshold))
+
+                    print(f"  • LzLCS above threshold ({obs_threshold}): {above.sum()}")
+                    print(f"  • LzLCS below threshold ({obs_threshold}): {below.sum()}")
+
+                    obs_kw = dict(s=150, marker='s', linewidth=1.2, zorder=5)
+                    if above.any():
+                        ax.scatter(x_obs[above], y_obs[above],
+                                   c=c_obs[above], cmap='Reds', alpha=0.9,
+                                   edgecolors='black',
+                                   label=f'LzLCS (≥{obs_threshold})', **obs_kw)
+                    if below.any():
+                        ax.scatter(x_obs[below], y_obs[below],
+                                   cmap='Reds', alpha=0.9,
+                                   edgecolors='black', facecolors='none',
+                                   label=f'LzLCS (<{obs_threshold})', **obs_kw)
+                else:
+                    mask_obs_base = x_obs.notna() & y_obs.notna()
+                    print(f"  • LzLCS: {mask_obs_base.sum()} points")
+                    ax.scatter(x_obs[mask_obs_base], y_obs[mask_obs_base],
+                               alpha=0.9, s=150, color='red', marker='s',
+                               edgecolors='black', linewidth=1.2,
+                               label='LzLCS', zorder=5)
+            else:
+                print("  • LzLCS: not available for this parameter combination")
+
+            # ------------------------------------------------------------------
+            # 4. Additional observational catalogues
+            # ------------------------------------------------------------------
+            if extra_obs_paths:
+                x_key = _PARAM_MAP.get(x_param)
+                y_key = _PARAM_MAP.get(y_param)
+
+                if x_key is None or y_key is None:
+                    print(f"  ⚠ Extra catalogues: no param mapping for "
+                          f"'{x_param}' or '{y_param}' – skipping.")
+                else:
+                    for cat_key, path in extra_obs_paths.items():
+                        if cat_key not in _EXTRA_CATALOGS:
+                            print(f"  ⚠ Unknown catalogue key '{cat_key}' – skipping.")
+                            continue
+
+                        style = _EXTRA_CATALOGS[cat_key]
+                        loader = style['loader']
+
+                        try:
+                            data = loader(path)
+                        except Exception as e:
+                            print(f"  ⚠ Could not load '{cat_key}' from {path}: {e}")
+                            continue
+
+                        x_cat = data.get(x_key)
+                        y_cat = data.get(y_key)
+                        z_cat = data.get('redshift')
+
+                        if x_cat is None or y_cat is None:
+                            print(f"  • {style['label']}: missing '{x_key}' or "
+                                  f"'{y_key}' – skipped.")
+                            continue
+
+                        mask = x_cat.notna() & y_cat.notna()
+                        n_valid = int(mask.sum())
+
+                        if n_valid == 0:
+                            print(f"  • {style['label']}: no valid points for "
+                                  f"({x_key}, {y_key}) – skipped.")
+                            continue
+
+                        print(f"  • {style['label']}: {n_valid} valid points")
+
+                        # For misc_highz: give special marker to z~10 source
+                        if cat_key == 'highz' and z_cat is not None:
+                            is_highz  = mask & (z_cat >= _HIGHZ_THRESHOLD)
+                            is_normal = mask & (z_cat < _HIGHZ_THRESHOLD)
+
+                            if is_normal.any():
+                                ax.scatter(
+                                    x_cat[is_normal], y_cat[is_normal],
+                                    marker=style['marker'], color=style['color'],
+                                    s=style['size'], edgecolors='black',
+                                    linewidth=0.8, alpha=0.9,
+                                    label=f"{style['label']}+21,22", zorder=style['zorder'],
+                                )
+                            if is_highz.any():
+                                ax.scatter(
+                                    x_cat[is_highz], y_cat[is_highz],
+                                    label=f"{style['label']}+26 (z~10.2)",
+                                    **_HIGHZ_SPECIAL_STYLE,
+                                )
+                                print(f"    ↳ {int(is_highz.sum())} source(s) at "
+                                      f"z≥{_HIGHZ_THRESHOLD} plotted with special marker")
+                        elif cat_key == 'bassett':
+                            # Filled triangle: f_esc >= 0.1
+                            # Hollow triangle: f_esc < 0.1 or f_esc not measured
+                            f_esc_cat = data.get('f_esc')
+                            if f_esc_cat is not None:
+                                filled = mask & f_esc_cat.notna() & (f_esc_cat >= 0.1)
+                                hollow = mask & (f_esc_cat.isna() | (f_esc_cat < 0.1))
+                            else:
+                                # No f_esc column at all – all hollow
+                                filled = mask & False
+                                hollow = mask
+
+                            n_filled = int(filled.sum())
+                            n_hollow = int(hollow.sum())
+                            print(f"  • {style['label']}: {n_filled} filled, "
+                                  f"{n_hollow} hollow (f_esc<0.1 or missing)")
+
+                            common_kw = dict(
+                                marker=style['marker'], s=style['size'],
+                                linewidth=0.8, alpha=0.9, zorder=style['zorder'],
+                            )
+                            if filled.any():
+                                ax.scatter(
+                                    x_cat[filled], y_cat[filled],
+                                    color=style['color'], edgecolors='black',
+                                    label=style['label'],
+                                    **common_kw,
+                                )
+                            if hollow.any():
+                                ax.scatter(
+                                    x_cat[hollow], y_cat[hollow],
+                                    facecolors='none', edgecolors=style['color'],
+                                    label=f"{style['label']} ($f_{{esc}}<0.1$)",
+                                    **common_kw,
+                                )
+                        else:
+                            ax.scatter(
+                                x_cat[mask], y_cat[mask],
+                                marker=style['marker'], color=style['color'],
+                                s=style['size'], edgecolors='black',
+                                linewidth=0.8, alpha=0.9,
+                                label=style['label'], zorder=style['zorder'],
+                            )
+
+            # ------------------------------------------------------------------
+            # 5. Formatting
+            # ------------------------------------------------------------------
+            # Parameters that are stored/plotted as log10 values
+            _LOG_PARAMS = {'O32'}
+
+            def _axis_label(param):
+                """Return 'log10(param)' for log-scaled params, else 'param'."""
+                if param in _LOG_PARAMS:
+                    return f'log$_{{10}}$({param})'
+                return param
+
+            ax.set_xlabel(_axis_label(x_param), fontsize=14)
+            ax.set_ylabel(_axis_label(y_param), fontsize=14)
+
+            title = f'{_axis_label(x_param)} vs {_axis_label(y_param)}'
+            if color_param:
+                title += f' (colored by {_axis_label(color_param)})'
+            ax.set_title(title, fontsize=15, fontweight='bold')
+
+            ax.grid(True, alpha=0.3)
+            ax.legend(loc='best', fontsize=11, frameon=True)
+
+            if log_x:
+                ax.set_xscale('log')
+            if log_y:
+                ax.set_yscale('log')
+            if xlim:
+                ax.set_xlim(xlim)
+            if ylim:
+                ax.set_ylim(ylim)
+
+            plt.tight_layout()
+
+            if save_path:
+                plt.savefig(save_path, dpi=300, bbox_inches='tight')
+                print(f"  ✓ Figure saved to {save_path}")
+
+            plt.show()
+
+        except Exception as e:
+            print(f"  ✗ Error: {e}")
+            import traceback
+            traceback.print_exc()
+            return
+
+        print("=" * 70 + "\n")
+# end of LyCDiagnostics class
+
+# ===========================================================================
+# Module-level helpers for additional observational catalogues
+# ===========================================================================
+
+def _to_float(series):
+    """
+    Convert a Series to float, coercing strings like '<0.003', '>6.2',
+    '≤0.67' to NaN so they are cleanly excluded from plots.
+    """
+    def _safe(val):
+        if pd.isna(val):
+            return np.nan
+        s = str(val).strip()
+        for prefix in ('<', '>', '≤', '≥', '~'):
+            s = s.lstrip(prefix).strip()
+        try:
+            return float(s)
+        except ValueError:
+            return np.nan
+    return series.apply(_safe)
+
+
+def _load_sxds(path: str) -> dict:
+    df = pd.read_csv(path)
+    return {
+        'M_UV':     _to_float(df['M_UV']),
+        'E(B-V)':   (_to_float(df['E_BV'])),
+        'f_esc':    _to_float(df['f_abs_c']),
+        'O32':      pd.Series([np.nan] * len(df)),
+        'redshift': _to_float(df['redshift']),
+    }
+
+
+def _load_bassett(path: str) -> dict:
+    df = pd.read_csv(path)
+    oiii = _to_float(df['[O III] (5007)'])
+    oii  = _to_float(df['[O II] (λλ3727)'])
+    with np.errstate(divide='ignore', invalid='ignore'):
+        o32 = np.where(
+            (oii > 0) & oiii.notna() & oii.notna(),
+            np.log10(oiii / oii), np.nan
+        )
+    z = _to_float(df['z_spec']).fillna(_to_float(df['z']))
+    return {
+        'M_UV':     pd.Series([np.nan] * len(df)),
+        'E(B-V)':   (_to_float(df['E(B-V)'])),
+        'f_esc':    _to_float(df['f_esc abs']),
+        'O32':      pd.Series(o32),
+        'redshift': z,
+    }
+
+
+def _load_laces(path: str) -> dict:
+    df = pd.read_csv(path)
+    return {
+        'M_UV':     _to_float(df['M_UV']),
+        'E(B-V)':   (_to_float(df['E(B - V)'])),
+        'f_esc':    _to_float(df['f_esc']),
+        'O32':      np.log10(_to_float(df['O3/02'])),
+        'redshift': _to_float(df['z_sys']),
+    }
+
+
+def _load_highz(path: str) -> dict:
+    df = pd.read_csv(path)
+    df['Source'] = df['Source'].str.strip()
+    return {
+        'M_UV':     _to_float(df['M_UV']),
+        'E(B-V)':   (_to_float(df['E_BV'])),
+        'f_esc':    _to_float(df['fesc_LyC_abs']),
+        'O32':      pd.Series([np.nan] * len(df)),
+        'redshift': _to_float(df['z']),
+    }
+
+
+# Redshift threshold above which the special high-z marker is used
+_HIGHZ_THRESHOLD = 8.0
+
+# Style per extra catalogue
+_EXTRA_CATALOGS = {
+    'sxds':    dict(label='SXDS Liu+23',    marker='D', color='purple', size=120, zorder=6, loader=_load_sxds),
+    'bassett': dict(label='Bassett+19', marker='^', color='magenta', size=130, zorder=6, loader=_load_bassett),
+    'laces':   dict(label='LACES Fletcher+19',   marker='o', color='olive', size=120, zorder=6, loader=_load_laces),
+    'highz':   dict(label='Marques-Chaves',   marker='*', color='cyan', size=200, zorder=7, loader=_load_highz),
+}
+
+# Special style for the z~10 source inside misc_highz
+_HIGHZ_SPECIAL_STYLE = dict(
+    marker='*', color='black', edgecolors='red',
+    linewidth=1.5, s=350, zorder=8,
+)
+
+# Mapping from CatalogueManager param names -> extra-catalogue dict keys
+_PARAM_MAP = {
+    'M_UV':   'M_UV',
+    'E(B-V)': 'E(B-V)',
+    'f_esc':  'f_esc',
+    'O32':    'O32',
+}
+
+
+# ===========================================================================
+# Patch plot_2d_all_directions_all onto LyCDiagnostics
+# ===========================================================================

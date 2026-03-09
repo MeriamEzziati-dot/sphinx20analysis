@@ -68,7 +68,167 @@ extra_obs_paths={
         'bassett': data_dir+'bassett.csv',}
 diag.plot_2d_all_directions_all('O32', 'E(B-V)', color_param="f_esc",save_path=output_dir + 'O32_EBV_fesc_all_directions_OBS_hifghz.png',extra_obs_paths=extra_obs_paths)
 
+# ============================================================
+# ALL 21 2D COMBINATIONS OF FINAL NON-REDUNDANT INDICATORS
+# coloured by f_esc (simulation only, no observations)
+# ============================================================
+
+print('\n' + '='*70)
+print('2D SCATTER: all 21 combinations of top indicators coloured by fesc')
+print('='*70)
+
+diag.plot_2d_all_directions_all(
+    'O32', 'O3Hb',
+    color_param='f_esc',
+    save_path=output_dir + 'O32_vs_O3Hb_fesc.png'
+)
+
+diag.plot_2d_all_directions_all(
+    'O32', 'S2_deficit',
+    color_param='f_esc',
+    save_path=output_dir + 'O32_vs_S2_deficit_fesc.png'
+)
+
+diag.plot_2d_all_directions_all(
+    'O32', 'E(B-V)',
+    color_param='f_esc',
+    save_path=output_dir + 'O32_vs_E_BV_fesc.png'
+)
+
+diag.plot_2d_all_directions_all(
+    'O32', 'EW_O3',
+    color_param='f_esc',
+    save_path=output_dir + 'O32_vs_EW_O3_fesc.png'
+)
+
+diag.plot_2d_all_directions_all(
+    'O32', 'xi_ion',
+    color_param='f_esc',
+    save_path=output_dir + 'O32_vs_xi_ion_fesc.png'
+)
+
+diag.plot_2d_all_directions_all(
+    'O32', 'M_UV',
+    color_param='f_esc',
+    save_path=output_dir + 'O32_vs_MAB_1500_fesc.png'
+)
+
+diag.plot_2d_all_directions_all(
+    'O3Hb', 'S2_deficit',
+    color_param='f_esc',
+    save_path=output_dir + 'O3Hb_vs_S2_deficit_fesc.png'
+)
+
+diag.plot_2d_all_directions_all(
+    'O3Hb', 'E(B-V)',
+    color_param='f_esc',
+    save_path=output_dir + 'O3Hb_vs_E_BV_fesc.png'
+)
+
+diag.plot_2d_all_directions_all(
+    'O3Hb', 'EW_O3',
+    color_param='f_esc',
+    save_path=output_dir + 'O3Hb_vs_EW_O3_fesc.png'
+)
+
+diag.plot_2d_all_directions_all(
+    'O3Hb', 'xi_ion',
+    color_param='f_esc',
+    save_path=output_dir + 'O3Hb_vs_xi_ion_fesc.png'
+)
+
+diag.plot_2d_all_directions_all(
+    'O3Hb', 'M_UV',
+    color_param='f_esc',
+    save_path=output_dir + 'O3Hb_vs_MAB_1500_fesc.png'
+)
+
+diag.plot_2d_all_directions_all(
+    'S2_deficit', 'E(B-V)',
+    color_param='f_esc',
+    save_path=output_dir + 'S2_deficit_vs_E_BV_fesc.png'
+)
+
+diag.plot_2d_all_directions_all(
+    'S2_deficit', 'EW_O3',
+    color_param='f_esc',
+    save_path=output_dir + 'S2_deficit_vs_EW_O3_fesc.png'
+)
+
+diag.plot_2d_all_directions_all(
+    'S2_deficit', 'xi_ion',
+    color_param='f_esc',
+    save_path=output_dir + 'S2_deficit_vs_xi_ion_fesc.png'
+)
+
+diag.plot_2d_all_directions_all(
+    'S2_deficit', 'M_UV',
+    color_param='f_esc',
+    save_path=output_dir + 'S2_deficit_vs_MAB_1500_fesc.png'
+)
+
+diag.plot_2d_all_directions_all(
+    'E(B-V)', 'EW_O3',
+    color_param='f_esc',
+    save_path=output_dir + 'E_BV_vs_EW_O3_fesc.png'
+)
+
+diag.plot_2d_all_directions_all(
+    'E(B-V)', 'xi_ion',
+    color_param='f_esc',
+    save_path=output_dir + 'E_BV_vs_xi_ion_fesc.png'
+)
+
+diag.plot_2d_all_directions_all(
+    'E(B-V)', 'M_UV',
+    color_param='f_esc',
+    save_path=output_dir + 'E_BV_vs_MAB_1500_fesc.png'
+)
+
+diag.plot_2d_all_directions_all(
+    'EW_O3', 'xi_ion',
+    color_param='f_esc',
+    save_path=output_dir + 'EW_O3_vs_xi_ion_fesc.png'
+)
+
+diag.plot_2d_all_directions_all(
+    'EW_O3', 'M_UV',
+    color_param='f_esc',
+    save_path=output_dir + 'EW_O3_vs_MAB_1500_fesc.png'
+)
+
+diag.plot_2d_all_directions_all(
+    'xi_ion', 'M_UV',
+    color_param='f_esc',
+    save_path=output_dir + 'xi_ion_vs_MAB_1500_fesc.png'
+)
+
+# ============================================================
+# PARAM VS F_ESC: one standalone scatter per indicator
+# ============================================================
+
+print('\n' + '='*70)
+print('PARAM VS F_ESC: individual scatter plots for each indicator')
+print('='*70)
+
+for _param, _fname in [
+    ('O32',        'O32_vs_fesc.png'),
+    ('O3Hb',       'O3Hb_vs_fesc.png'),
+    ('S2_deficit', 'S2_deficit_vs_fesc.png'),
+    ('E(B-V)',     'E_BV_vs_fesc.png'),
+    ('EW_O3',      'EW_O3_vs_fesc.png'),
+    ('xi_ion',     'xi_ion_vs_fesc.png'),
+    ('M_UV',       'M_UV_vs_fesc.png'),
+]:
+    diag.plot_2d_all_directions_all(
+        _param, 'f_esc',
+        color_param=None,
+        save_path=output_dir + _fname)
+
+
+
 """
+
 diag.plot_2d_all_directions(
     'sSFR',           # Gets f_esc_dir_0 to f_esc_dir_9
     'E(B-V)',            # Gets M_UV for all directions
@@ -275,7 +435,7 @@ print("="*70)
 #     direction=0,
 #     figsize=(10, 8),
 #     save_path=output_dir + 'muv_fesc_dir0.png'
-)
+# )
 # 
 # diag.plot_2d_comparison(
 #     x_param='M_UV',

@@ -1,0 +1,1967 @@
+#!/usr/bin/env python3
+"""
+SPHINX20 LyC Escape Fraction Analysis Script
+=============================================
+Focuses on analyzing Lyman Continuum (LyC) escape fractions and their
+correlations with galaxy properties in the SPHINX20 data release.
+
+Author: Meriam Ezziati 05 dec 2025
+"""
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from scipy import stats
+import warnings
+data_path='/home/mezziati/Documents/IAP/SPHINX20/data/'
+home_path='/home/mezziati/Documents/IAP/SPHINX20/sphinx_analysis/outputs/'
+warnings.filterwarnings('ignore')
+
+plt.style.use('seaborn-v0_8-darkgrid')
+sns.set_palette("husl")
+
+class MERMosaicError(Exception):
+    pass
+
+
+class SPHINXLyCAnalyzer:
+    """Analyzer for SPHINX20 LyC escape fraction data."""
+
+    def __init__(self, filepath,observations):
+        """Load SPHINX20 data."""
+        print("Loading SPHINX20 data...")
+        self.df = pd.read_csv(filepath)
+        self.observations = pd.read_csv(observations)
+        # self.control = pd.read_csv(control)
+
+        print(f"Loaded {len(self.df)} galaxies")
+
+
+        # Convert log values to linear
+        self.df['f_esc_linear'] = 10 ** self.df['f_esc']
+        self.df['stellar_mass_linear'] = self.df['stellar_mass']
+        self.df['ionizing_luminosity_linear'] = 10 ** self.df['ionizing_luminosity']
+        # Same for the control sample
+        # self.control['A_SFR_l'] = 10 ** self.control['A_SFR']
+        # self.control['A_SFR_error_l'] = 10 ** self.control['A_SFR_error']
+
+
+        # Calculate mean directional escape fraction (total of dir=10)
+        fesc_dir_cols = [col for col in self.df.columns if col.startswith('fesc_dir_')]
+        if fesc_dir_cols:
+            self.df['fesc_dir_mean'] = self.df[fesc_dir_cols].mean(axis=1)
+            self.df['fesc_dir_std'] = self.df[fesc_dir_cols].std(axis=1)
+
+    def save_column_names(self, output_path=home_path+'column_names.txt'):
+        """Extract and save column names from both simulation and observation dataframes."""
+
+        # Extract column names
+        simu_columns = self.df.columns.tolist()
+        obs_columns = self.observations.columns.tolist()
+
+        # Save to text file
+        with open(output_path, 'w') as f:
+            f.write("=" * 60 + "\n")
+            f.write("SIMULATION FILE COLUMNS\n")
+            f.write("=" * 60 + "\n\n")
+            for i, col in enumerate(simu_columns, 1):
+                f.write(f"{i}. {col}\n")
+
+            f.write("\n" + "=" * 60 + "\n")
+            f.write("OBSERVATIONS FILE COLUMNS\n")
+            f.write("=" * 60 + "\n\n")
+            for i, col in enumerate(obs_columns, 1):
+                f.write(f"{i}. {col}\n")
+
+            f.write("\n" + "=" * 60 + "\n")
+            f.write(f"Total simulation columns: {len(simu_columns)}\n")
+            f.write(f"Total observation columns: {len(obs_columns)}\n")
+            f.write("=" * 60 + "\n")
+
+        print(f"Column names saved to {output_path}")
+        return output_path
+
+    def summary_statistics(self):
+        """Print summary statistics for LyC escape fractions."""
+        print("\n" + "=" * 60)
+        print("LyC ESCAPE FRACTION SUMMARY STATISTICS")
+        print("=" * 60)
+
+        print(f"\nTotal number of galaxies: {len(self.df)}")
+        print(f"Redshift range: {self.df['redshift'].min():.2f} - {self.df['redshift'].max():.2f}")
+
+        print("\n--- f_esc (log10 LyC escape fraction) ---")
+        print(f"Mean: {self.df['f_esc'].mean():.3f}")
+        print(f"Median: {self.df['f_esc'].median():.3f}")
+        print(f"Std: {self.df['f_esc'].std():.3f}")
+        print(f"Min: {self.df['f_esc'].min():.3f}")
+        print(f"Max: {self.df['f_esc'].max():.3f}")
+
+        print("\n--- f_esc (linear, %) ---")
+        print(f"Mean: {self.df['f_esc_linear'].mean() * 100:.2f}%")
+        print(f"Median: {self.df['f_esc_linear'].median() * 100:.2f}%")
+
+        # Directional escape fractions
+        if 'fesc_dir_mean' in self.df.columns:
+            print("\n--- Directional f_esc (mean across viewing angles) ---")
+            print(f"Mean: {self.df['fesc_dir_mean'].mean() * 100:.2f}%")
+            print(f"Median: {self.df['fesc_dir_mean'].median() * 100:.2f}%")
+            print(f"Mean anisotropy (std): {self.df['fesc_dir_std'].mean() * 100:.2f}%")
+
+        # Galaxies with high escape fractions
+        high_esc = (self.df['f_esc_linear'] > 0.1).sum()
+        print(f"\nGalaxies with f_esc > 10%: {high_esc} ({high_esc / len(self.df) * 100:.1f}%)")
+
+        very_high_esc = (self.df['f_esc_linear'] > 0.2).sum()
+        print(f"Galaxies with f_esc > 20%: {very_high_esc} ({very_high_esc / len(self.df) * 100:.1f}%)")
+
+    def redshift_evolution(self):
+        """Analyze LyC escape fraction evolution with redshift."""
+        print("\n" + "=" * 60)
+        print("REDSHIFT EVOLUTION")
+        print("=" * 60)
+
+        redshifts = sorted(self.df['redshift'].unique())
+        print(f"\nAvailable redshifts: {redshifts}")
+
+        for z in redshifts:
+            z_data = self.df[self.df['redshift'] == z]
+            mean_fesc = z_data['f_esc_linear'].mean() * 100
+            median_fesc = z_data['f_esc_linear'].median() * 100
+            print(f"z = {z:.1f}: N = {len(z_data):4d}, "
+                  f"<f_esc> = {mean_fesc:.2f}%, "
+                  f"median = {median_fesc:.2f}%")
+
+    def correlations(self):
+        """Calculate correlations between f_esc and galaxy properties."""
+        print("\n" + "=" * 60)
+        print("CORRELATIONS WITH f_esc")
+        print("=" * 60)
+
+        # Properties to correlate with f_esc
+        properties = {
+            'stellar_mass': 'Stellar Mass (log M☉)',
+            'mvir': 'Halo Mass (log M☉)',
+            'sfr_10': 'SFR (10 Myr avg)',
+            'ionizing_luminosity': 'Ionizing Luminosity (log)',
+            'gas_metallicity': 'Gas Metallicity (log Z☉)',
+            'stellar_metallicity': 'Stellar Metallicity (log Z☉)',
+            'mean_stellar_age_mass': 'Mean Stellar Age (Myr)',
+        }
+
+        print("\nSpearman correlation coefficients with f_esc:")
+        print("-" * 60)
+
+        results = []
+        for prop, name in properties.items():
+            if prop in self.df.columns:
+                # Remove NaN values
+                mask = ~(self.df[prop].isna() | self.df['f_esc'].isna())
+                if mask.sum() > 10:  # Need at least 10 points
+                    corr, pval = stats.spearmanr(self.df.loc[mask, prop],
+                                                 self.df.loc[mask, 'f_esc'])
+                    results.append({
+                        'Property': name,
+                        'Correlation': corr,
+                        'P-value': pval,
+                        'Significant': 'Yes' if pval < 0.05 else 'No'
+                    })
+                    print(f"{name:30s}: r = {corr:6.3f}, p = {pval:.3e}")
+
+        return pd.DataFrame(results)
+
+    def plot_overview(self, output_file='sphinx_lyc_overview.png'):
+        """Create overview plots of LyC escape fractions."""
+        fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+        fig.suptitle('SPHINX20 LyC Escape Fraction Overview',
+                     fontsize=16, fontweight='bold')
+
+        # 1. Distribution of f_esc
+        ax = axes[0, 0]
+        ax.hist(self.df['f_esc_linear'] * 100, bins=50,
+                edgecolor='black', alpha=0.7)
+        ax.set_xlabel('f_esc (%)')
+        ax.set_ylabel('Number of Galaxies')
+        ax.set_title('Distribution of LyC Escape Fraction')
+        ax.axvline(self.df['f_esc_linear'].mean() * 100,
+                   color='red', linestyle='--', label='Mean')
+        ax.axvline(self.df['f_esc_linear'].median() * 100,
+                   color='black', linestyle='--', label='Median')
+        ax.legend()
+
+        # 2. f_esc vs Stellar Mass
+        ax = axes[0, 1]
+        scatter = ax.scatter(self.df['stellar_mass'],
+                             self.df['f_esc_linear'] * 100,
+                             c=self.df['redshift'],
+                             alpha=0.6, s=20, cmap='viridis')
+        ax.set_xlabel('Stellar Mass (log M☉)')
+        ax.set_ylabel('f_esc (%)')
+        ax.set_title('f_esc vs Stellar Mass')
+        ax.set_yscale('log')
+        plt.colorbar(scatter, ax=ax, label='Redshift')
+
+        # 3. f_esc vs SFR
+        ax = axes[0, 2]
+        mask = self.df['sfr_10'] > 0
+        ax.scatter(self.df.loc[mask, 'sfr_10'],
+                   self.df.loc[mask, 'f_esc_linear'] * 100,
+                   alpha=0.6, s=20)
+        ax.set_xlabel('SFR (10 Myr avg, M☉/yr)')
+        ax.set_ylabel('f_esc (%)')
+        ax.set_title('f_esc vs Star Formation Rate')
+        ax.set_xscale('log')
+        ax.set_yscale('log')
+
+        # 4. f_esc vs Gas Metallicity
+        ax = axes[1, 0]
+        ax.scatter(self.df['gas_metallicity'],
+                   self.df['f_esc_linear'] * 100,
+                   alpha=0.6, s=20)
+        ax.set_xlabel('Gas Metallicity (log Z☉)')
+        ax.set_ylabel('f_esc (%)')
+        ax.set_title('f_esc vs Gas Metallicity')
+        ax.set_yscale('log')
+
+        # 5. Redshift Evolution
+        ax = axes[1, 1]
+        redshifts = sorted(self.df['redshift'].unique())
+        mean_fesc = [self.df[self.df['redshift'] == z]['f_esc_linear'].mean() * 100
+                     for z in redshifts]
+        median_fesc = [self.df[self.df['redshift'] == z]['f_esc_linear'].median() * 100
+                       for z in redshifts]
+
+        ax.plot(redshifts, mean_fesc, 'o-', label='Mean', markersize=8)
+        ax.plot(redshifts, median_fesc, 's-', label='Median', markersize=8)
+        ax.set_xlabel('Redshift')
+        ax.set_ylabel('f_esc (%)')
+        ax.set_title('f_esc Evolution with Redshift')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+
+        # 6. Directional variance
+        if 'fesc_dir_std' in self.df.columns:
+            ax = axes[1, 2]
+            ax.scatter(self.df['fesc_dir_mean'] * 100,
+                       self.df['fesc_dir_std'] * 100,
+                       alpha=0.6, s=20)
+            ax.set_xlabel('Mean Directional f_esc (%)')
+            ax.set_ylabel('Std Dev of Directional f_esc (%)')
+            ax.set_title('Anisotropy in LyC Escape')
+            ax.plot([0, 100], [0, 0], 'k--', alpha=0.3)
+        else:
+            ax = axes[1, 2]
+            ax.text(0.5, 0.5, 'Directional f_esc\ndata not available',
+                    ha='center', va='center', transform=ax.transAxes)
+            ax.axis('off')
+
+        plt.tight_layout()
+        plt.savefig(output_file, dpi=300, bbox_inches='tight')
+        print(f"\nSaved overview plot to {output_file}")
+        return fig
+
+    def plot_detailed_correlations(self, output_file='sphinx_lyc_correlations.png'):
+        """Create detailed correlation plots."""
+        fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+        fig.suptitle('SPHINX20: f_esc Correlations',
+                     fontsize=16, fontweight='bold')
+
+        # 1. f_esc vs Ionizing Luminosity
+        ax = axes[0, 0]
+        ax.scatter(self.df['ionizing_luminosity'],
+                   self.df['f_esc_linear'] * 100,
+                   alpha=0.5, s=20)
+        ax.set_xlabel('Ionizing Luminosity (log phot/s)')
+        ax.set_ylabel('f_esc (%)')
+        ax.set_yscale('log')
+        ax.set_title('f_esc vs Ionizing Luminosity')
+
+        # Calculate and display correlation
+        mask = ~(self.df['ionizing_luminosity'].isna() | self.df['f_esc'].isna())
+        if mask.sum() > 10:
+            corr, pval = stats.spearmanr(
+                self.df.loc[mask, 'ionizing_luminosity'],
+                self.df.loc[mask, 'f_esc']
+            )
+            ax.text(0.05, 0.95, f'ρ = {corr:.3f}\np = {pval:.3e}',
+                    transform=ax.transAxes, va='top',
+                    bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+
+        # 2. f_esc vs Stellar Age
+        ax = axes[0, 1]
+        mask = self.df['mean_stellar_age_mass'] > 0
+        ax.scatter(self.df.loc[mask, 'mean_stellar_age_mass'],
+                   self.df.loc[mask, 'f_esc_linear'] * 100,
+                   alpha=0.5, s=20)
+        ax.set_xlabel('Mean Stellar Age (Myr)')
+        ax.set_ylabel('f_esc (%)')
+        ax.set_xscale('log')
+        ax.set_yscale('log')
+        ax.set_title('f_esc vs Stellar Age')
+
+        # 3. f_esc vs Halo Mass
+        ax = axes[1, 0]
+        ax.scatter(self.df['mvir'],
+                   self.df['f_esc_linear'] * 100,
+                   alpha=0.5, s=20)
+        ax.set_xlabel('Halo Mass (log M☉)')
+        ax.set_ylabel('f_esc (%)')
+        ax.set_yscale('log')
+        ax.set_title('f_esc vs Halo Mass')
+
+        # 4. Stellar Mass vs Halo Mass colored by f_esc
+        ax = axes[1, 1]
+        scatter = ax.scatter(self.df['mvir'],
+                             self.df['stellar_mass'],
+                             c=np.log10(self.df['f_esc_linear'] * 100),
+                             alpha=0.6, s=20, cmap='RdYlBu_r')
+        ax.set_xlabel('Halo Mass (log M☉)')
+        ax.set_ylabel('Stellar Mass (log M☉)')
+        ax.set_title('Galaxy Mass Relation (colored by f_esc)')
+        cbar = plt.colorbar(scatter, ax=ax)
+        cbar.set_label('log(f_esc %)')
+
+        plt.tight_layout()
+        plt.savefig(output_file, dpi=300, bbox_inches='tight')
+        print(f"Saved correlation plot to {output_file}")
+        return fig
+
+    def analyze_high_escapers(self, threshold=0.1):
+        """Analyze properties of high LyC escape fraction galaxies."""
+        print("\n" + "=" * 60)
+        print(f"HIGH ESCAPER ANALYSIS (f_esc > {threshold * 100}%)")
+        print("=" * 60)
+
+        high_esc = self.df[self.df['f_esc_linear'] > threshold]
+        low_esc = self.df[self.df['f_esc_linear'] <= threshold]
+
+        print(f"\nHigh escapers: {len(high_esc)} galaxies")
+        print(f"Low escapers: {len(low_esc)} galaxies")
+
+        properties = ['stellar_mass', 'mvir', 'sfr_10', 'gas_metallicity',
+                      'stellar_metallicity', 'ionizing_luminosity']
+
+        print("\nProperty comparison:")
+        print("-" * 60)
+        for prop in properties:
+            if prop in self.df.columns:
+                high_mean = high_esc[prop].mean()
+                low_mean = low_esc[prop].mean()
+                print(f"{prop:25s}: High = {high_mean:8.3f}, Low = {low_mean:8.3f}")
+
+        return high_esc, low_esc
+
+    def export_summary(self, output_file='sphinx_lyc_summary.txt'):
+        """Export summary statistics to text file."""
+        with open(output_file, 'w') as f:
+            f.write("SPHINX20 LyC ESCAPE FRACTION ANALYSIS\n")
+            f.write("=" * 70 + "\n\n")
+
+            f.write(f"Total galaxies: {len(self.df)}\n")
+            f.write(f"Redshift range: {self.df['redshift'].min():.2f} - "
+                    f"{self.df['redshift'].max():.2f}\n\n")
+
+            f.write("ESCAPE FRACTION STATISTICS\n")
+            f.write("-" * 70 + "\n")
+            f.write(f"Mean f_esc: {self.df['f_esc_linear'].mean() * 100:.2f}%\n")
+            f.write(f"Median f_esc: {self.df['f_esc_linear'].median() * 100:.2f}%\n")
+            f.write(f"Std f_esc: {self.df['f_esc_linear'].std() * 100:.2f}%\n\n")
+
+            f.write("REDSHIFT EVOLUTION\n")
+            f.write("-" * 70 + "\n")
+            for z in sorted(self.df['redshift'].unique()):
+                z_data = self.df[self.df['redshift'] == z]
+                f.write(f"z = {z:.1f}: N = {len(z_data)}, "
+                        f"<f_esc> = {z_data['f_esc_linear'].mean() * 100:.2f}%\n")
+
+        print(f"\nExported summary to {output_file}")
+
+    def plot_fesc_vs_stellar_mass(self, figsize=(14, 6), save_path=None):
+        """
+        Plot escape fraction vs stellar mass for both simulations and observations.
+
+        Parameters:
+        -----------
+        figsize : tuple, default (14, 6)
+        save_path : str, optional path to save the figure
+        """
+        fig, axes = plt.subplots(1, 2, figsize=figsize)
+
+        # Simulation data
+        ax = axes[0]
+        scatter = ax.scatter(self.df['stellar_mass'],
+                             self.df['f_esc'],
+                             c=self.df['redshift'],
+                             cmap='viridis',
+                             alpha=0.6,
+                             s=50)
+        ax.set_xlabel('log₁₀(M* / M☉)', fontsize=12)
+        ax.set_ylabel('log₁₀(f_esc)', fontsize=12)
+        ax.set_title('SPHINX20 Simulations', fontsize=14, fontweight='bold')
+        ax.grid(True, alpha=0.3)
+        cbar = plt.colorbar(scatter, ax=ax)
+        cbar.set_label('Redshift', fontsize=11)
+
+        # Observation data
+        ax = axes[1]
+        # Using f_esc(LyC)-Hbeta as the escape fraction
+        mask_obs = (self.observations['f_esc(LyC)-Hbeta'].notna() &
+                    self.observations['log10(Mstar)'].notna())
+
+        obs_fesc = np.log10(self.observations.loc[mask_obs, 'f_esc(LyC)-Hbeta'])
+        obs_mass = self.observations.loc[mask_obs, 'log10(Mstar)']
+        obs_z = self.observations.loc[mask_obs, 'z']
+
+        scatter = ax.scatter(obs_mass, obs_fesc,
+                             c=obs_z,
+                             cmap='viridis',
+                             alpha=0.6,
+                             s=100,
+                             marker='s',
+                             edgecolors='black',
+                             linewidth=0.5)
+        ax.set_xlabel('log₁₀(M* / M☉)', fontsize=12)
+        ax.set_ylabel('log₁₀(f_esc)', fontsize=12)
+        ax.set_title('Observations', fontsize=14, fontweight='bold')
+        ax.grid(True, alpha=0.3)
+        cbar = plt.colorbar(scatter, ax=ax)
+        cbar.set_label('Redshift', fontsize=11)
+
+        plt.tight_layout()
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.show()
+
+    def plot_fesc_vs_sfr(self, figsize=(14, 6), save_path=None):
+        """
+        Plot escape fraction vs star formation rate.
+        Color-coded by stellar mass.
+        """
+        fig, axes = plt.subplots(1, 2, figsize=figsize)
+
+        # Simulation data (using SFR_100)
+        ax = axes[0]
+        scatter = ax.scatter(self.df['sfr_100'],
+                             self.df['f_esc'],
+                             c=self.df['stellar_mass'],
+                             cmap='plasma',
+                             alpha=0.6,
+                             s=50)
+        ax.set_xlabel('log₁₀(SFR / M☉ yr⁻¹)', fontsize=12)
+        ax.set_ylabel('log₁₀(f_esc)', fontsize=12)
+        ax.set_title('SPHINX20 Simulations', fontsize=14, fontweight='bold')
+        ax.grid(True, alpha=0.3)
+        cbar = plt.colorbar(scatter, ax=ax)
+        cbar.set_label('log₁₀(M* / M☉)', fontsize=11)
+
+        # Observation data
+        ax = axes[1]
+        mask_obs = (self.observations['f_esc(LyC)-Hbeta'].notna() &
+                    self.observations['log10(SFR)-UV'].notna() &
+                    self.observations['log10(Mstar)'].notna())
+
+        obs_fesc = np.log10(self.observations.loc[mask_obs, 'f_esc(LyC)-Hbeta'])
+        obs_sfr = self.observations.loc[mask_obs, 'log10(SFR)-UV']
+        obs_mass = self.observations.loc[mask_obs, 'log10(Mstar)']
+
+        scatter = ax.scatter(obs_sfr, obs_fesc,
+                             c=obs_mass,
+                             cmap='plasma',
+                             alpha=0.6,
+                             s=100,
+                             marker='s',
+                             edgecolors='black',
+                             linewidth=0.5)
+        ax.set_xlabel('log₁₀(SFR / M☉ yr⁻¹)', fontsize=12)
+        ax.set_ylabel('log₁₀(f_esc)', fontsize=12)
+        ax.set_title('Observations', fontsize=14, fontweight='bold')
+        ax.grid(True, alpha=0.3)
+        cbar = plt.colorbar(scatter, ax=ax)
+        cbar.set_label('log₁₀(M* / M☉)', fontsize=11)
+
+        plt.tight_layout()
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.show()
+
+    def plot_fesc_vs_metallicity(self, figsize=(14, 6), save_path=None):
+        """
+        Plot escape fraction vs gas metallicity.
+        Color-coded by stellar mass.
+        Converts simulation metallicity to 12+log(O/H) scale for proper comparison.
+        """
+        fig, axes = plt.subplots(1, 2, figsize=figsize)
+
+        # Simulation data - CONVERT to 12+log(O/H) scale
+        # log(Z/Z☉) → 12+log(O/H) conversion:
+        # 12+log(O/H) = [12+log(O/H)☉] + log(Z/Z☉)
+        # Using solar value: 12+log(O/H)☉ ≈ 8.69
+        solar_oh = 8.69
+        sim_metallicity = self.df['gas_metallicity'] + solar_oh
+
+        ax = axes[0]
+        scatter = ax.scatter(sim_metallicity,
+                             self.df['f_esc'],
+                             c=self.df['stellar_mass'],
+                             cmap='coolwarm',
+                             alpha=0.6,
+                             s=50)
+        ax.set_xlabel('12 + log₁₀(O/H)', fontsize=12)
+        ax.set_ylabel('log₁₀(f_esc)', fontsize=12)
+        ax.set_title('SPHINX20 Simulations', fontsize=14, fontweight='bold')
+        ax.grid(True, alpha=0.3)
+        cbar = plt.colorbar(scatter, ax=ax)
+        cbar.set_label('log₁₀(M* / M☉)', fontsize=11)
+
+        # Observation data (already in 12+log(O/H) scale)
+        ax = axes[1]
+        mask_obs = (self.observations['f_esc(LyC)-Hbeta'].notna() &
+                    self.observations['OH_12'].notna() &
+                    self.observations['log10(Mstar)'].notna())
+
+        obs_fesc = np.log10(self.observations.loc[mask_obs, 'f_esc(LyC)-Hbeta'])
+        obs_metallicity = self.observations.loc[mask_obs, 'OH_12']  # Already 12+log(O/H)
+        obs_mass = self.observations.loc[mask_obs, 'log10(Mstar)']
+
+        scatter = ax.scatter(obs_metallicity, obs_fesc,
+                             c=obs_mass,
+                             cmap='coolwarm',
+                             alpha=0.6,
+                             s=100,
+                             marker='s',
+                             edgecolors='black',
+                             linewidth=0.5)
+        ax.set_xlabel('12 + log₁₀(O/H)', fontsize=12)
+        ax.set_ylabel('log₁₀(f_esc)', fontsize=12)
+        ax.set_title('Observations', fontsize=14, fontweight='bold')
+        ax.grid(True, alpha=0.3)
+        cbar = plt.colorbar(scatter, ax=ax)
+        cbar.set_label('log₁₀(M* / M☉)', fontsize=11)
+
+        plt.tight_layout()
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.show()
+    def plot_fesc_vs_uvbeta(self, figsize=(14, 6), save_path=None):
+        """
+        Plot escape fraction vs UV slope (beta).
+        Color-coded by redshift.
+        """
+        fig, axes = plt.subplots(1, 2, figsize=figsize)
+
+        # Simulation data (using beta_int_sn)
+        ax = axes[0]
+        mask_sim = self.df['beta_int_sn'].notna()
+        scatter = ax.scatter(self.df.loc[mask_sim, 'beta_int_sn'],
+                             self.df.loc[mask_sim, 'f_esc'],
+                             c=self.df.loc[mask_sim, 'redshift'],
+                             cmap='viridis',
+                             alpha=0.6,
+                             s=50)
+        ax.set_xlabel('β (UV slope)', fontsize=12)
+        ax.set_ylabel('log₁₀(f_esc)', fontsize=12)
+        ax.set_title('SPHINX20 Simulations', fontsize=14, fontweight='bold')
+        ax.grid(True, alpha=0.3)
+        cbar = plt.colorbar(scatter, ax=ax)
+        cbar.set_label('Redshift', fontsize=11)
+
+        # Observation data
+        ax = axes[1]
+        mask_obs = (self.observations['f_esc(LyC)-Hbeta'].notna() &
+                    self.observations['UV-beta'].notna())
+
+        obs_fesc = np.log10(self.observations.loc[mask_obs, 'f_esc(LyC)-Hbeta'])
+        obs_beta = self.observations.loc[mask_obs, 'UV-beta']
+        obs_z = self.observations.loc[mask_obs, 'z']
+
+        scatter = ax.scatter(obs_beta, obs_fesc,
+                             c=obs_z,
+                             cmap='viridis',
+                             alpha=0.6,
+                             s=100,
+                             marker='s',
+                             edgecolors='black',
+                             linewidth=0.5)
+        ax.set_xlabel('β (UV slope)', fontsize=12)
+        ax.set_ylabel('log₁₀(f_esc)', fontsize=12)
+        ax.set_title('Observations', fontsize=14, fontweight='bold')
+        ax.grid(True, alpha=0.3)
+        cbar = plt.colorbar(scatter, ax=ax)
+        cbar.set_label('Redshift', fontsize=11)
+
+        plt.tight_layout()
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+
+
+    def plot_fesc_vs_xi_ion(self, figsize=(14, 6), save_path=None):
+        """
+        Plot escape fraction vs ionizing photon production efficiency (xi_ion).
+        Color-coded by stellar mass.
+        """
+        fig, axes = plt.subplots(1, 2, figsize=figsize)
+
+        # Simulation data
+        ax = axes[0]
+        scatter = ax.scatter(self.df['xi_ion'],
+                             self.df['f_esc'],
+                             c=self.df['stellar_mass'],
+                             cmap='magma',
+                             alpha=0.6,
+                             s=50)
+        ax.set_xlabel('log₁₀(ξ_ion / Hz erg⁻¹)', fontsize=12)
+        ax.set_ylabel('log₁₀(f_esc)', fontsize=12)
+        ax.set_title('SPHINX20 Simulations', fontsize=14, fontweight='bold')
+        ax.grid(True, alpha=0.3)
+        cbar = plt.colorbar(scatter, ax=ax)
+        cbar.set_label('log₁₀(M* / M☉)', fontsize=11)
+
+        # Observation data
+        ax = axes[1]
+        mask_obs = (self.observations['f_esc(LyC)-Hbeta'].notna() &
+                    self.observations['xi-ion'].notna() &
+                    self.observations['log10(Mstar)'].notna())
+
+        obs_fesc = np.log10(self.observations.loc[mask_obs, 'f_esc(LyC)-Hbeta'])
+        obs_xi = self.observations.loc[mask_obs, 'xi-ion']
+        obs_mass = self.observations.loc[mask_obs, 'log10(Mstar)']
+
+        scatter = ax.scatter(obs_xi, obs_fesc,
+                             c=obs_mass,
+                             cmap='magma',
+                             alpha=0.6,
+                             s=100,
+                             marker='s',
+                             edgecolors='black',
+                             linewidth=0.5)
+        ax.set_xlabel('log₁₀(ξ_ion / Hz erg⁻¹)', fontsize=12)
+        ax.set_ylabel('log₁₀(f_esc)', fontsize=12)
+        ax.set_title('Observations', fontsize=14, fontweight='bold')
+        ax.grid(True, alpha=0.3)
+        cbar = plt.colorbar(scatter, ax=ax)
+        cbar.set_label('log₁₀(M* / M☉)', fontsize=11)
+
+        plt.tight_layout()
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.show()
+
+    def plot_fesc_histograms(self, figsize=(10, 6), save_path=None):
+        """
+        Compare distributions of escape fractions between simulations and observations.
+        """
+        fig, ax = plt.subplots(figsize=figsize)
+
+        # Simulation data
+        ax.hist(self.df['f_esc'], bins=30, alpha=0.5,
+                label='SPHINX20 Simulations', color='blue', edgecolor='black')
+
+        # Observation data
+        mask_obs = self.observations['f_esc(LyC)-Hbeta'].notna()
+        obs_fesc = np.log10(self.observations.loc[mask_obs, 'f_esc(LyC)-Hbeta'])
+        ax.hist(obs_fesc, bins=20, alpha=0.5,
+                label='LzLCS', color='red', edgecolor='black')
+
+        ax.set_xlabel('log₁₀(f_esc)', fontsize=13)
+        ax.set_ylabel('Number of Galaxies', fontsize=13)
+        ax.set_title('Escape Fraction Distribution Comparison', fontsize=14, fontweight='bold')
+        ax.legend(fontsize=12)
+        ax.grid(True, alpha=0.3)
+
+        plt.tight_layout()
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.show()
+
+    def plot_multiparameter_comparison(self, figsize=(16, 10), save_path=None):
+        """
+        Create a comprehensive multi-panel comparison plot.
+        Shows: mass-fesc, SFR-fesc, metallicity-fesc, and xi_ion-fesc
+        """
+        fletcher_path = '/home/mezziati/Documents/IAP/SPHINX20/data/fletcher.csv'
+        print("Loading SPHINX20 data...")
+        fletcher_data = pd.read_csv(fletcher_path)
+        print(f"Loaded {len(fletcher_data)} galaxies")
+        columns = fletcher_data.columns.tolist()
+        print(columns[:10])
+
+        fesc = fletcher_data['f_esc']
+        print(fesc)
+        fig = plt.figure(figsize=figsize)
+        gs = fig.add_gridspec(2, 2, hspace=0.3, wspace=0.3)
+        mask = 10 ** (self.df['f_esc']) > 0.1
+        mask01 = self.observations['f_esc(LyC)-Hbeta']>0.1
+        # 1. Mass vs f_esc
+        ax1 = fig.add_subplot(gs[0, 0])
+        scatter1 = ax1.scatter(
+            self.df['stellar_mass'][mask],
+            self.df['f_esc'][mask],
+            alpha=0.4, s=30, label='SPHINX20',
+            c=self.df['redshift'][mask],  # Don't forget to mask the color too!
+            cmap='cividis'
+        )
+        mask_obs = (self.observations['f_esc(LyC)-Hbeta'].notna() & mask01 &
+                    self.observations['log10(Mstar)'].notna())
+        mask_fletcher = (fletcher_data['f_esc'].notna() &
+                    fletcher_data['M_star'].notna())
+
+
+        obs_fesc = np.log10(self.observations.loc[mask_obs, 'f_esc(LyC)-Hbeta'])
+        obs_mass = self.observations.loc[mask_obs, 'log10(Mstar)']
+
+        fletcher_fesc = np.log10(fletcher_data.loc[mask_fletcher, 'f_esc'])
+        fletcher_mass = fletcher_data.loc[mask_fletcher, 'M_star']
+        ax1.scatter(obs_mass, obs_fesc,
+                    alpha=0.7, s=100, label='LzLCS',
+                    color='red', marker='s', edgecolors='black', linewidth=0.5)
+        ax1.scatter((fletcher_mass), fletcher_fesc,
+                    alpha=0.7, s=200, label='LACES',
+                    color='green', marker='*', edgecolors='black', linewidth=0.5)
+        ax1.set_xlabel('log₁₀(M* / $\mathrm{M_{\odot}}$)', fontsize=11)
+        ax1.set_ylabel('log₁₀($\mathrm{f_{esc}}$)', fontsize=11)
+        ax1.set_title('Stellar Mass vs $\mathrm{f_{esc}}$', fontsize=12, fontweight='bold')
+        #ax1.legend()
+        ax1.grid(True, alpha=0.3)
+
+        # 2. SFR vs f_esc
+        ax2 = fig.add_subplot(gs[0, 1])
+        scatter2=ax2.scatter(self.df['sfr_100'][mask], self.df['f_esc'][mask],
+                    alpha=0.4, s=30, label='SPHINX20', c=self.df['redshift'][mask],cmap='cividis')
+
+        # Observation masks
+        mask_fletcher = (fletcher_data['f_esc'].notna() &
+                    fletcher_data['A_SFR'].notna())
+
+        mask_obs = (self.observations['f_esc(LyC)-Hbeta'].notna() & mask01 &
+                    self.observations['log10(SFR)-UV'].notna())
+        obs_fesc = np.log10(self.observations.loc[mask_obs, 'f_esc(LyC)-Hbeta'])
+        obs_sfr = self.observations.loc[mask_obs, 'log10(SFR)-UV']
+
+        #TODO: include fletcher data  in the class contructor as an **args
+
+        fletcher_fesc = np.log10(fletcher_data.loc[mask_fletcher, 'f_esc'])
+        fletcher_sfr = fletcher_data.loc[mask_fletcher, 'A_SFR']
+
+        ax2.scatter(np.log10(fletcher_sfr), fletcher_fesc,
+                    alpha=0.7, s=200, label='LACES',
+                    color='green', marker='*', edgecolors='black', linewidth=0.5)
+
+        ax2.scatter(obs_sfr, obs_fesc,
+                    alpha=0.7, s=100, label='LzLCS',
+                    color='red', marker='s', edgecolors='black', linewidth=0.5)
+
+        ax2.set_xlabel('log10(SFR)($\mathrm{M_{\odot}}$ /yr)', fontsize=11)
+        ax2.set_ylabel('log10($\mathrm{f_{esc}}$)', fontsize=11)
+        ax2.set_title('Star Formation Rate vs $\mathrm{f_{esc}}$, xrange[0,5]', fontsize=12, fontweight='bold')
+        # ax2.legend()
+        ax2.set_xlim(0,5)
+        ax2.grid(True, alpha=0.3)
+
+        # 3. Metallicity vs f_esc - CORRECTED WITH CONVERSION
+        ax3 = fig.add_subplot(gs[1, 0])
+        # Convert simulation metallicity from log(Z/Z☉) to 12+log(O/H)
+        solar_oh = 8.69
+
+        # OBS
+        O2_obs = self.observations['O2_3726A']+ self.observations['O2_3729A']
+        O3_obs = self.observations['O3_4959A'] + self.observations['O3_5007A']
+        O32_obs=O3_obs/O2_obs
+
+        #SIM
+
+        O2_sim = self.df['O__2_3726.03A_int'] +self.df['O__2_3728.81A_int']
+        O3_sim = self.df['O__3_4958.91A_int']+ self.df['O__3_5006.84A_int']
+        O32 = O3_sim/O2_sim
+
+
+
+        scatter3=ax3.scatter(O32[mask], self.df['f_esc'][mask],
+                    alpha=0.4, s=30, label='SPHINX20', c=self.df['redshift'][mask],cmap='cividis')
+
+        mask_obs = (self.observations['f_esc(LyC)-Hbeta'].notna() & mask01 &
+                    O32_obs.notna())
+
+        mask_fletcher = (fletcher_data['f_esc'].notna() &
+                    O32_obs.notna())
+
+
+
+
+        obs_fesc = np.log10(self.observations.loc[mask_obs, 'f_esc(LyC)-Hbeta'])
+        obs_metal = O32_obs[mask_obs]  # Already in 12+log(O/H)
+
+        fletcher_fesc = np.log10(fletcher_data.loc[mask_fletcher, 'f_esc'])
+        fletcher_metal = fletcher_data.loc[mask_fletcher, 'O3/02']  # Already in 12+log(O/H)
+
+
+        ax3.scatter(obs_metal, obs_fesc,
+                    alpha=0.7, s=100, label='LzLCS',
+                    color='red', marker='s', edgecolors='black', linewidth=0.5)
+        ax3.scatter(fletcher_metal, fletcher_fesc,
+                    alpha=0.7, s=200, label='LACES',
+                    color='green', marker='*', edgecolors='black', linewidth=0.5)
+        ax3.set_xlabel('OIII/OII', fontsize=11)
+        ax3.set_xlim(0,40)
+
+        ax3.set_ylabel('log₁₀($\mathrm{f_{esc}}$)', fontsize=11)
+        ax3.set_title('OIII/OII vs $\mathrm{f_{esc}}$, xrange [0,40]', fontsize=12, fontweight='bold')
+        # ax3.legend()
+        ax3.grid(True, alpha=0.3)
+
+        # 4. xi_ion vs f_esc
+        ax4 = fig.add_subplot(gs[1, 1])
+        scatter4=ax4.scatter(self.df['xi_ion'][mask], self.df['f_esc'][mask],
+                    alpha=0.4, s=30, label='SPHINX20', c=self.df['redshift'][mask],cmap='cividis')
+        mask_obs = (self.observations['f_esc(LyC)-Hbeta'].notna() & mask01 &
+                    self.observations['xi-ion'].notna())
+
+        mask_fletcher = (fletcher_data['f_esc'].notna()  & fletcher_data['log10(Xi-ion)'].notna())
+        fletcher_fesc = np.log10(fletcher_data.loc[mask_fletcher, 'f_esc'])
+        obs_fesc = np.log10(self.observations.loc[mask_obs, 'f_esc(LyC)-Hbeta'])
+
+        obs_xi = self.observations.loc[mask_obs, 'xi-ion']
+        fletcher_xi = np.log10(10**(fletcher_data.loc[mask_fletcher, 'log10(Xi-ion)'])/(1-fletcher_fesc))
+
+        ax4.scatter(obs_xi, obs_fesc,
+                    alpha=0.7, s=100, label='LzLCS',
+                    color='red', marker='s', edgecolors='black', linewidth=0.5)
+        ax4.scatter(fletcher_xi, fletcher_fesc,
+                    alpha=0.7, s=200, label='LACES',
+                    color='green', marker='*', edgecolors='black', linewidth=0.5)
+        ax4.set_xlabel('log₁₀($ξ_{\mathrm{ion}}$ / Hz erg)', fontsize=11)
+        ax4.set_ylabel('log₁₀($\mathrm{f_{esc}}$)', fontsize=11)
+        ax4.set_title('$ξ_{\mathrm{ion}}$ vs $\mathrm{f_{esc}}$', fontsize=12, fontweight='bold')
+        # ax4.legend()
+        ax4.grid(True, alpha=0.3)
+
+
+        cbar1 = fig.colorbar(scatter1, ax=ax1)
+        cbar1.set_label('Redshift', fontsize=9)
+
+        cbar2 = fig.colorbar(scatter2, ax=ax2)
+        cbar2.set_label('Redshift', fontsize=9)
+
+        cbar3 = fig.colorbar(scatter3, ax=ax3)
+        cbar3.set_label('Redshift', fontsize=9)
+
+        cbar4 = fig.colorbar(scatter4, ax=ax4)
+        cbar4.set_label('Redshift', fontsize=9)
+
+        plt.suptitle(r'$f_{\mathrm{esc}}>10\%$' + ' Multi-Parameter Comparison: Simulations vs Observations',
+                     fontsize=15, fontweight='bold', y=0.995)
+        from matplotlib.patches import Patch
+        from matplotlib.lines import Line2D
+        legend_elements = [
+            Line2D([0], [0], marker='o', color='w', label='SPHINX20',
+                   markerfacecolor='gray', markersize=8, alpha=0.6),
+            Line2D([0], [0], marker='s', color='w', label='LzLCS',
+                   markerfacecolor='red', markersize=10, markeredgecolor='black', markeredgewidth=0.5),
+            Line2D([0], [0], marker='*', color='w', label='LACES',
+                   markerfacecolor='green', markersize=15, markeredgecolor='black', markeredgewidth=0.5)
+        ]
+
+        fig.legend(handles=legend_elements, loc='lower center',
+                   ncol=3, fontsize=12, frameon=True,
+                   bbox_to_anchor=(0.5, 0.02))
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.show()
+
+
+# ============================================================================
+# INDIRECT f_esc INDICATOR PLOTS
+# ============================================================================
+
+    def plot_o32_vs_metallicity(self, figsize=(14, 6), save_path=None):
+        """
+        Plot O32 ([OIII]/[OII]) vs metallicity.
+        High O32 is a strong indicator of high ionization and f_esc.
+        """
+        fig, axes = plt.subplots(1, 2, figsize=figsize)
+
+        # Simulation data
+        ax = axes[0]
+        # Calculate O32 = [OIII]5007 / [OII]3727
+        sim_o32 = np.log10(self.df['OIII_5006.84_int'] / self.df['OII_3726.03_int'])
+        solar_oh = 8.69
+        sim_metallicity = self.df['gas_metallicity'] + solar_oh
+
+        scatter = ax.scatter(sim_metallicity, sim_o32,
+                             c=self.df['f_esc'],
+                             cmap='plasma',
+                             alpha=0.6,
+                             s=50,
+                             vmin=-3, vmax=0)
+        ax.set_xlabel('12 + log₁₀(O/H)', fontsize=12)
+        ax.set_ylabel('log₁₀(O32) = log([OIII]/[OII])', fontsize=12)
+        ax.set_title('SPHINX20 Simulations', fontsize=14, fontweight='bold')
+        ax.grid(True, alpha=0.3)
+        ax.axhline(y=np.log10(3), color='red', linestyle='--', alpha=0.5, label='O32=3 (leaker threshold)')
+        ax.legend()
+        cbar = plt.colorbar(scatter, ax=ax)
+        cbar.set_label('log₁₀(f_esc)', fontsize=11)
+
+        # Observation data
+        ax = axes[1]
+        mask_obs = (self.observations['O3_5007A'].notna() &
+                    self.observations['O2_3726A'].notna() &
+                    self.observations['OH_12'].notna() &
+                    self.observations['f_esc(LyC)-Hbeta'].notna())
+
+        obs_o32 = np.log10(self.observations.loc[mask_obs, 'O3_5007A'] /
+                           self.observations.loc[mask_obs, 'O2_3726A'])
+        obs_metallicity = self.observations.loc[mask_obs, 'OH_12']
+        obs_fesc = np.log10(self.observations.loc[mask_obs, 'f_esc(LyC)-Hbeta'])
+
+        # Size by f_esc (larger = higher f_esc)
+        sizes = 50 + 200 * (obs_fesc - obs_fesc.min()) / (obs_fesc.max() - obs_fesc.min())
+
+        scatter = ax.scatter(obs_metallicity, obs_o32,
+                             c=obs_fesc,
+                             cmap='plasma',
+                             alpha=0.6,
+                             s=sizes,
+                             marker='s',
+                             edgecolors='black',
+                             linewidth=0.5,
+                             vmin=-3, vmax=0)
+        ax.set_xlabel('12 + log₁₀(O/H)', fontsize=12)
+        ax.set_ylabel('log₁₀(O32) = log([OIII]/[OII])', fontsize=12)
+        ax.set_title('Observations', fontsize=14, fontweight='bold')
+        ax.grid(True, alpha=0.3)
+        ax.axhline(y=np.log10(3), color='red', linestyle='--', alpha=0.5, label='O32=3 (leaker threshold)')
+        ax.legend()
+        cbar = plt.colorbar(scatter, ax=ax)
+        cbar.set_label('log₁₀(f_esc)', fontsize=11)
+
+        plt.tight_layout()
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.show()
+
+
+    def plot_ew_hbeta_vs_mass(self, figsize=(14, 6), save_path=None):
+        """
+        Plot Hbeta equivalent width vs stellar mass.
+        High EW indicates young, bursty SF => high f_esc.
+        """
+        fig, axes = plt.subplots(1, 2, figsize=figsize)
+
+        # Simulation data - calculate EW(Hβ)
+        ax = axes[0]
+        # EW = Line flux / continuum
+        sim_ew_hb = self.df['HI_4861.32_int'] / self.df['cont_4861_int']
+
+        scatter = ax.scatter(self.df['stellar_mass'],
+                             np.log10(sim_ew_hb),
+                             c=self.df['f_esc'],
+                             cmap='coolwarm',
+                             alpha=0.6,
+                             s=50,
+                             vmin=-3, vmax=0)
+        ax.set_xlabel('log₁₀(M* / M☉)', fontsize=12)
+        ax.set_ylabel('log₁₀(EW(Hβ) / Å)', fontsize=12)
+        ax.set_title('SPHINX20 Simulations', fontsize=14, fontweight='bold')
+        ax.grid(True, alpha=0.3)
+        ax.axhline(y=np.log10(100), color='red', linestyle='--', alpha=0.5, label='EW=100Å')
+        ax.legend()
+        cbar = plt.colorbar(scatter, ax=ax)
+        cbar.set_label('log₁₀(f_esc)', fontsize=11)
+
+        # Observation data
+        ax = axes[1]
+        mask_obs = (self.observations['EW(H1r_4861)'].notna() &
+                    self.observations['log10(Mstar)'].notna() &
+                    self.observations['f_esc(LyC)-Hbeta'].notna())
+
+        obs_ew = self.observations.loc[mask_obs, 'EW(H1r_4861)']
+        obs_mass = self.observations.loc[mask_obs, 'log10(Mstar)']
+        obs_fesc = np.log10(self.observations.loc[mask_obs, 'f_esc(LyC)-Hbeta'])
+
+        scatter = ax.scatter(obs_mass, np.log10(obs_ew),
+                             c=obs_fesc,
+                             cmap='coolwarm',
+                             alpha=0.6,
+                             s=100,
+                             marker='s',
+                             edgecolors='black',
+                             linewidth=0.5,
+                             vmin=-3, vmax=0)
+        ax.set_xlabel('log₁₀(M* / M☉)', fontsize=12)
+        ax.set_ylabel('log₁₀(EW(Hβ) / Å)', fontsize=12)
+        ax.set_title('Observations', fontsize=14, fontweight='bold')
+        ax.grid(True, alpha=0.3)
+        ax.axhline(y=np.log10(100), color='red', linestyle='--', alpha=0.5, label='EW=100Å')
+        ax.legend()
+        cbar = plt.colorbar(scatter, ax=ax)
+        cbar.set_label('log₁₀(f_esc)', fontsize=11)
+
+        plt.tight_layout()
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.show()
+
+
+    def plot_uv_slope_vs_metallicity(self, figsize=(14, 6), save_path=None):
+        """
+        Plot UV slope (β) vs metallicity.
+        Blue UV slope (β < -2) + low metallicity → high f_esc.
+        """
+        fig, axes = plt.subplots(1, 2, figsize=figsize)
+
+        # Simulation data
+        ax = axes[0]
+        mask_sim = self.df['beta_int_sn'].notna()
+        solar_oh = 8.69
+        sim_metallicity = self.df.loc[mask_sim, 'gas_metallicity'] + solar_oh
+
+        scatter = ax.scatter(sim_metallicity,
+                             self.df.loc[mask_sim, 'beta_int_sn'],
+                             c=self.df.loc[mask_sim, 'f_esc'],
+                             cmap='viridis',
+                             alpha=0.6,
+                             s=50,
+                             vmin=-3, vmax=0)
+        ax.set_xlabel('12 + log₁₀(O/H)', fontsize=12)
+        ax.set_ylabel('β (UV slope)', fontsize=12)
+        ax.set_title('SPHINX20 Simulations', fontsize=14, fontweight='bold')
+        ax.grid(True, alpha=0.3)
+        ax.axhline(y=-2, color='red', linestyle='--', alpha=0.5, label='β=-2 (dust-free)')
+        ax.legend()
+        cbar = plt.colorbar(scatter, ax=ax)
+        cbar.set_label('log₁₀(f_esc)', fontsize=11)
+
+        # Observation data
+        ax = axes[1]
+        mask_obs = (self.observations['UV-beta'].notna() &
+                    self.observations['OH_12'].notna() &
+                    self.observations['f_esc(LyC)-Hbeta'].notna())
+
+        obs_beta = self.observations.loc[mask_obs, 'UV-beta']
+        obs_metallicity = self.observations.loc[mask_obs, 'OH_12']
+        obs_fesc = np.log10(self.observations.loc[mask_obs, 'f_esc(LyC)-Hbeta'])
+
+        scatter = ax.scatter(obs_metallicity, obs_beta,
+                             c=obs_fesc,
+                             cmap='viridis',
+                             alpha=0.6,
+                             s=100,
+                             marker='s',
+                             edgecolors='black',
+                             linewidth=0.5,
+                             vmin=-3, vmax=0)
+        ax.set_xlabel('12 + log₁₀(O/H)', fontsize=12)
+        ax.set_ylabel('β (UV slope)', fontsize=12)
+        ax.set_title('Observations', fontsize=14, fontweight='bold')
+        ax.grid(True, alpha=0.3)
+        ax.axhline(y=-2, color='red', linestyle='--', alpha=0.5, label='β=-2 (dust-free)')
+        ax.legend()
+        cbar = plt.colorbar(scatter, ax=ax)
+        cbar.set_label('log₁₀(f_esc)', fontsize=11)
+
+        plt.tight_layout()
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.show()
+
+
+    def plot_ssfr_vs_mass(self, figsize=(14, 6), save_path=None):
+        """
+        Plot specific star formation rate (sSFR) vs stellar mass.
+        High sSFR indicates bursty SF → feedback → high f_esc.
+        """
+        fig, axes = plt.subplots(1, 2, figsize=figsize)
+
+        # Simulation data
+        ax = axes[0]
+        # sSFR = SFR / M* (both in log, so subtract)
+        sim_ssfr = self.df['sfr_100'] - self.df['stellar_mass']
+
+        scatter = ax.scatter(self.df['stellar_mass'], sim_ssfr,
+                             c=self.df['f_esc'],
+                             cmap='plasma',
+                             alpha=0.6,
+                             s=50,
+                             vmin=-3, vmax=0)
+        ax.set_xlabel('log₁₀(M* / M☉)', fontsize=12)
+        ax.set_ylabel('log₁₀(sSFR / yr⁻¹)', fontsize=12)
+        ax.set_title('SPHINX20 Simulations', fontsize=14, fontweight='bold')
+        ax.grid(True, alpha=0.3)
+        ax.axhline(y=-8, color='red', linestyle='--', alpha=0.5, label='sSFR=10⁻⁸ yr⁻¹')
+        ax.legend()
+        cbar = plt.colorbar(scatter, ax=ax)
+        cbar.set_label('log₁₀(f_esc)', fontsize=11)
+
+        # Observation data
+        ax = axes[1]
+        mask_obs = (self.observations['log10(SFR)-UV'].notna() &
+                    self.observations['log10(Mstar)'].notna() &
+                    self.observations['f_esc(LyC)-Hbeta'].notna())
+
+        obs_ssfr = (self.observations.loc[mask_obs, 'log10(SFR)-UV'] -
+                    self.observations.loc[mask_obs, 'log10(Mstar)'])
+        obs_mass = self.observations.loc[mask_obs, 'log10(Mstar)']
+        obs_fesc = np.log10(self.observations.loc[mask_obs, 'f_esc(LyC)-Hbeta'])
+
+        scatter = ax.scatter(obs_mass, obs_ssfr,
+                             c=obs_fesc,
+                             cmap='plasma',
+                             alpha=0.6,
+                             s=100,
+                             marker='s',
+                             edgecolors='black',
+                             linewidth=0.5,
+                             vmin=-3, vmax=0)
+        ax.set_xlabel('log₁₀(M* / M☉)', fontsize=12)
+        ax.set_ylabel('log₁₀(sSFR / yr⁻¹)', fontsize=12)
+        ax.set_title('Observations', fontsize=14, fontweight='bold')
+        ax.grid(True, alpha=0.3)
+        ax.axhline(y=-8, color='red', linestyle='--', alpha=0.5, label='sSFR=10⁻⁸ yr⁻¹')
+        ax.legend()
+        cbar = plt.colorbar(scatter, ax=ax)
+        cbar.set_label('log₁₀(f_esc)', fontsize=11)
+
+        plt.tight_layout()
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.show()
+
+
+    def plot_o32_vs_ew_hbeta(self, figsize=(14, 6), save_path=None):
+        """
+        Classic LyC leaker diagnostic: O32 vs EW(Hβ).
+        High O32 + high EW → strong LyC leaker.
+        *** THIS IS THE MOST IMPORTANT DIAGNOSTIC PLOT ***
+        """
+        fig, axes = plt.subplots(1, 2, figsize=figsize)
+
+        # Simulation data
+        ax = axes[0]
+        sim_o32 = np.log10(self.df['OIII_5006.84_int'] / self.df['OII_3726.03_int'])
+        sim_ew_hb = self.df['HI_4861.32_int'] / self.df['cont_4861_int']
+
+        scatter = ax.scatter(np.log10(sim_ew_hb), sim_o32,
+                             c=self.df['f_esc'],
+                             cmap='magma',
+                             alpha=0.6,
+                             s=50,
+                             vmin=-3, vmax=0)
+        ax.set_xlabel('log₁₀(EW(Hβ) / Å)', fontsize=12)
+        ax.set_ylabel('log₁₀(O32)', fontsize=12)
+        ax.set_title('SPHINX20 Simulations', fontsize=14, fontweight='bold')
+        ax.grid(True, alpha=0.3)
+
+        # Add leaker region
+        ax.axhline(y=np.log10(3), color='red', linestyle='--', alpha=0.3)
+        ax.axvline(x=np.log10(100), color='red', linestyle='--', alpha=0.3)
+        ax.text(np.log10(150), np.log10(5), 'Leaker\nRegion',
+                fontsize=10, color='red', alpha=0.7, fontweight='bold')
+
+        cbar = plt.colorbar(scatter, ax=ax)
+        cbar.set_label('log₁₀(f_esc)', fontsize=11)
+
+        # Observation data
+        ax = axes[1]
+        mask_obs = (self.observations['EW(H1r_4861)'].notna() &
+                    self.observations['O3_5007A'].notna() &
+                    self.observations['O2_3726A'].notna() &
+                    self.observations['f_esc(LyC)-Hbeta'].notna())
+
+        obs_ew = self.observations.loc[mask_obs, 'EW(H1r_4861)']
+        obs_o32 = np.log10(self.observations.loc[mask_obs, 'O3_5007A'] /
+                           self.observations.loc[mask_obs, 'O2_3726A'])
+        obs_fesc = np.log10(self.observations.loc[mask_obs, 'f_esc(LyC)-Hbeta'])
+
+        scatter = ax.scatter(np.log10(obs_ew), obs_o32,
+                             c=obs_fesc,
+                             cmap='magma',
+                             alpha=0.6,
+                             s=100,
+                             marker='s',
+                             edgecolors='black',
+                             linewidth=0.5,
+                             vmin=-3, vmax=0)
+        ax.set_xlabel('log₁₀(EW(Hβ) / Å)', fontsize=12)
+        ax.set_ylabel('log₁₀(O32)', fontsize=12)
+        ax.set_title('Observations', fontsize=14, fontweight='bold')
+        ax.grid(True, alpha=0.3)
+
+        # Add leaker region
+        ax.axhline(y=np.log10(3), color='red', linestyle='--', alpha=0.3)
+        ax.axvline(x=np.log10(100), color='red', linestyle='--', alpha=0.3)
+        ax.text(np.log10(150), np.log10(5), 'Leaker\nRegion',
+                fontsize=10, color='red', alpha=0.7, fontweight='bold')
+
+        cbar = plt.colorbar(scatter, ax=ax)
+        cbar.set_label('log₁₀(f_esc)', fontsize=11)
+
+        plt.tight_layout()
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.show()
+
+
+    def plot_compactness_diagnostic(self, figsize=(14, 6), save_path=None):
+        """
+        Plot galaxy size vs stellar mass (compactness).
+        Compact galaxies → higher surface brightness → higher f_esc.
+        Note: Only observations have size measurements.
+        """
+        fig, ax = plt.subplots(figsize=figsize)
+
+        # Observation data only
+        mask_obs = (self.observations['r_50_phys'].notna() &
+                    self.observations['log10(Mstar)'].notna() &
+                    self.observations['f_esc(LyC)-Hbeta'].notna())
+
+        obs_size = np.log10(self.observations.loc[mask_obs, 'r_50_phys'])
+        obs_mass = self.observations.loc[mask_obs, 'log10(Mstar)']
+        obs_fesc = np.log10(self.observations.loc[mask_obs, 'f_esc(LyC)-Hbeta'])
+
+        scatter = ax.scatter(obs_mass, obs_size,
+                             c=obs_fesc,
+                             cmap='coolwarm',
+                             alpha=0.7,
+                             s=150,
+                             marker='s',
+                             edgecolors='black',
+                             linewidth=0.5,
+                             vmin=-3, vmax=0)
+        ax.set_xlabel('log₁₀(M* / M☉)', fontsize=13)
+        ax.set_ylabel('log₁₀(r₅₀ / kpc)', fontsize=13)
+        ax.set_title('Galaxy Compactness: Size vs Mass (Observations)',
+                     fontsize=14, fontweight='bold')
+        ax.grid(True, alpha=0.3)
+
+        # Add typical size-mass relation line (for reference)
+        mass_ref = np.linspace(7, 10, 50)
+        size_ref = 0.14 * (mass_ref - 9) + np.log10(2)  # Approximate relation
+        ax.plot(mass_ref, size_ref, 'k--', alpha=0.3, label='Typical size-mass relation')
+        ax.legend()
+
+        cbar = plt.colorbar(scatter, ax=ax)
+        cbar.set_label('log₁₀(f_esc)', fontsize=12)
+
+        plt.tight_layout()
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.show()
+
+
+    def plot_lya_lyc_comparison(self, figsize=(10, 8), save_path=None):
+        """
+        Compare Lyα and LyC escape fractions (observations only).
+        Tests if Lyα escape can predict LyC escape.
+        """
+        fig, ax = plt.subplots(figsize=figsize)
+
+        # Observation data only
+        mask_obs = (self.observations['f_esc(LyA)'].notna() &
+                    self.observations['f_esc(LyC)-Hbeta'].notna() &
+                    self.observations['log10(Mstar)'].notna())
+
+        obs_lya = self.observations.loc[mask_obs, 'f_esc(LyA)']
+        obs_lyc = self.observations.loc[mask_obs, 'f_esc(LyC)-Hbeta']
+        obs_mass = self.observations.loc[mask_obs, 'log10(Mstar)']
+
+        scatter = ax.scatter(obs_lya, obs_lyc,
+                             c=obs_mass,
+                             cmap='viridis',
+                             alpha=0.7,
+                             s=150,
+                             marker='o',
+                             edgecolors='black',
+                             linewidth=0.5)
+
+        ax.set_xlabel('f_esc(Lyα)', fontsize=13)
+        ax.set_ylabel('f_esc(LyC)', fontsize=13)
+        ax.set_title('Lyα vs LyC Escape Fraction Correlation',
+                     fontsize=14, fontweight='bold')
+        ax.set_xscale('log')
+        ax.set_yscale('log')
+        ax.grid(True, alpha=0.3, which='both')
+
+        # Add 1:1 line
+        lim = [min(ax.get_xlim()[0], ax.get_ylim()[0]),
+               max(ax.get_xlim()[1], ax.get_ylim()[1])]
+        ax.plot(lim, lim, 'k--', alpha=0.3, label='1:1 relation')
+        ax.legend()
+
+        cbar = plt.colorbar(scatter, ax=ax)
+        cbar.set_label('log₁₀(M* / M☉)', fontsize=12)
+
+        plt.tight_layout()
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.show()
+
+
+    def plot_mass_sfr_relation(self, figsize=(12, 8), save_path=None):
+        """
+        Create stellar mass vs SFR plot color-coded by redshift.
+        Includes SPHINX20 simulations, LzLCS observations, and LACES data.
+        """
+        fletcher_path = '/home/mezziati/Documents/IAP/SPHINX20/data/fletcher.csv'
+        print("Loading SPHINX20 data...")
+        fletcher_data = pd.read_csv(fletcher_path)
+        print(f"Loaded {len(fletcher_data)} galaxies")
+
+        fig, ax = plt.subplots(figsize=figsize)
+
+        # Filter for valid data in simulations
+        mask_sim = (self.df['stellar_mass'].notna() &
+                    self.df['sfr_100'].notna() &
+                    self.df['redshift'].notna())
+
+        # Plot SPHINX20 simulations with redshift color-coding
+        scatter = ax.scatter(
+            self.df.loc[mask_sim, 'stellar_mass'],
+            np.log10(self.df.loc[mask_sim, 'sfr_100']),
+            c=self.df.loc[mask_sim, 'redshift'],
+            cmap='cividis',
+            alpha=0.4,
+            s=30,
+            label='SPHINX20',
+            edgecolors='none'
+        )
+
+        # Add LzLCS observations
+        mask_obs = (self.observations['log10(Mstar)'].notna() &
+                    self.observations['log10(SFR)-UV'].notna())
+
+        if mask_obs.any():
+            ax.scatter(
+                self.observations.loc[mask_obs, 'log10(Mstar)'],
+                self.observations.loc[mask_obs, 'log10(SFR)-UV'],
+                alpha=0.7,
+                s=100,
+                label='LzLCS',
+                color='red',
+                marker='s',
+                edgecolors='black',
+                linewidth=0.5,
+                zorder=5
+            )
+
+        # Add LACES (fletcher) data
+        mask_fletcher = (fletcher_data['M_star'].notna() &
+                         fletcher_data['A_SFR'].notna())
+
+        if mask_fletcher.any():
+            ax.scatter(
+                fletcher_data.loc[mask_fletcher, 'M_star'],
+                np.log10(fletcher_data.loc[mask_fletcher, 'A_SFR']),
+                alpha=0.7,
+                s=200,
+                label='LACES',
+                color='green',
+                marker='*',
+                edgecolors='black',
+                linewidth=0.5,
+                zorder=5
+            )
+
+        # Add colorbar for redshift
+        cbar = plt.colorbar(scatter, ax=ax)
+        cbar.set_label('Redshift', fontsize=12)
+
+        # Labels and formatting
+        ax.set_xlabel('log₁₀(M* / $\mathrm{M_{\odot}}$)', fontsize=13)
+        ax.set_ylabel('log₁₀(SFR / $\mathrm{M_{\odot}}$ yr$^{-1}$)', fontsize=13)
+        ax.set_title('Stellar Mass vs SFR',
+                     fontsize=14, fontweight='bold')
+        ax.grid(True, alpha=0.3)
+        # Create custom legend
+        from matplotlib.lines import Line2D
+        legend_elements = [
+            Line2D([0], [0], marker='o', color='w', label='SPHINX20',
+                   markerfacecolor='gray', markersize=8, alpha=0.6),
+            Line2D([0], [0], marker='s', color='w', label='LzLCS',
+                   markerfacecolor='red', markersize=10,
+                   markeredgecolor='black', markeredgewidth=0.5),
+            Line2D([0], [0], marker='*', color='w', label='LACES',
+                   markerfacecolor='green', markersize=15,
+                   markeredgecolor='black', markeredgewidth=0.5)
+        ]
+        ax.legend(handles=legend_elements, loc='best', fontsize=11, frameon=True)
+
+        plt.tight_layout()
+
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            print(f"Figure saved to {save_path}")
+
+        plt.show()
+
+
+    def plot_ebv_beta_relation(self, figsize=(12, 8), save_path=None):
+        """
+        Create E(B-V) vs Beta slope plot with analytical relation.
+        Includes SPHINX20 simulations and LzLCS observations.
+        Only observations color-coded by f_esc.
+        Includes side histogram for f_esc > 5% simulations.
+        Prints detailed statistics for both datasets.
+        """
+        # Create figure with gridspec for main plot and histogram
+        fig = plt.figure(figsize=figsize)
+        gs = fig.add_gridspec(1, 2, width_ratios=[4, 1], wspace=0.05)
+        ax_main = fig.add_subplot(gs[0])
+        ax_hist = fig.add_subplot(gs[1], sharey=ax_main)
+
+        print("\n" + "=" * 60)
+        print("STATISTICS FOR SIMULATIONS (SPHINX20)")
+        print("=" * 60)
+
+        # Total galaxies
+        print(f"Total galaxies: {len(self.df)}")
+
+        # Base mask (all columns present)
+        mask_sim_base = (self.df['f_esc'].notna() &
+                         self.df['H__1_6562.80A_int'].notna() &  # Halpha
+                         self.df['cont_1500_int'].notna() &  # L1500
+                         self.df['beta_int_s'].notna() &  # beta slope
+                         self.df['redshift'].notna() &
+                         self.df['ebmv_dir_0'].notna() &
+                         self.df['ebmv_dir_1'].notna() &
+                         self.df['ebmv_dir_2'].notna() &
+                         self.df['ebmv_dir_3'].notna() &
+                         self.df['ebmv_dir_4'].notna() &
+                         self.df['ebmv_dir_5'].notna() &
+                         self.df['ebmv_dir_6'].notna() &
+                         self.df['ebmv_dir_7'].notna() &
+                         self.df['ebmv_dir_8'].notna() &
+                         self.df['ebmv_dir_9'].notna())
+
+        print(f"Galaxies with all required data: {mask_sim_base.sum()}")
+
+        # Calculate mean E(B-V) across all 10 directions
+        ebv_columns = [f'ebmv_dir_{i}' for i in range(10)]
+        self.df['ebmv_mean'] = self.df[ebv_columns].mean(axis=1)
+
+        # Calculate Halpha/L1500 ratio
+        self.df['halpha_l1500_ratio'] = np.log10(self.df['H__1_6562.80A_int'] / self.df['cont_1500_int'])
+
+        # Individual cuts
+        mask_fesc = mask_sim_base & (10 ** self.df['f_esc'] > 0.05)
+        mask_ratio = mask_sim_base & (self.df['halpha_l1500_ratio'] < 1.6)
+
+        print(f"  → After f_esc > 5% cut: {mask_fesc.sum()}")
+        print(f"  → After Hα/L1500 < 1.6 cut: {mask_ratio.sum()}")
+
+        # Combined cuts
+        mask_sim = mask_sim_base & (10 ** self.df['f_esc'] > 0.05) & (self.df['halpha_l1500_ratio'] < 1.6)
+        print(f"  → After BOTH cuts: {mask_sim.sum()}")
+
+        print("\n" + "=" * 60)
+        print("STATISTICS FOR OBSERVATIONS (LzLCS)")
+        print("=" * 60)
+
+        # Total observations
+        print(f"Total galaxies: {len(self.observations)}")
+
+        # Convert M_1500 to L_1500 for observations
+        # L_1500 / L_sun = 10^(-0.4 * (M_1500 - M_sun_1500))
+        # Using M_sun_1500 ≈ 15.5
+        M_sun_1500 = 15.5
+        self.observations['L_1500'] = 10 ** (-0.4 * (self.observations['M_1500'] - M_sun_1500))
+
+        # Calculate Halpha/L1500 ratio for observations
+        # Need to convert Halpha flux to luminosity first
+        # L(Halpha) is already in the observations as L(H1r_6563A)
+        # But we need flux ratio, so use flux directly
+        # Actually, for consistent comparison, let's use the flux ratio
+        self.observations['halpha_l1500_ratio'] = np.log10(
+            self.observations['H1r_6563A'] / self.observations['L_1500'])
+
+        # Base mask (all columns present)
+        mask_obs_base = (self.observations['UV-beta'].notna() &
+                         self.observations['E(B-V)_uv'].notna() &
+                         self.observations['H1r_6563A'].notna() &
+                         self.observations['f_esc(LyC)-UVfit'].notna() &
+                         self.observations['M_1500'].notna())
+
+        print(f"Galaxies with all required data: {mask_obs_base.sum()}")
+
+        # Individual cuts
+        mask_obs_fesc = mask_obs_base & (self.observations['f_esc(LyC)-UVfit'] > 0.05)
+        mask_obs_ratio = mask_obs_base & (self.observations['halpha_l1500_ratio'] < 1.6)
+
+        print(f"  → After f_esc > 5% cut: {mask_obs_fesc.sum()}")
+        print(f"  → After Hα/L1500 < 1.6 cut: {mask_obs_ratio.sum()}")
+
+        # Combined cuts
+        mask_obs = mask_obs_base & (self.observations['f_esc(LyC)-UVfit'] > 0.05) & (
+                    self.observations['halpha_l1500_ratio'] < 1.6)
+        print(f"  → After BOTH cuts: {mask_obs.sum()}")
+        print("=" * 60 + "\n")
+
+        # Plot simulations (SPHINX20) - color-coded by f_esc
+        scatter = ax_main.scatter(
+            self.df.loc[mask_sim, 'beta_int_s'],
+            np.log10(self.df.loc[mask_sim, 'ebmv_mean']),
+            c=10 ** self.df.loc[mask_sim, 'f_esc'] * 100,
+            cmap='cividis',
+            alpha=0.4,
+            s=30,
+            label='SPHINX20',
+            edgecolors='none'
+        )
+
+        # Plot observations (LzLCS) - red squares
+        if mask_obs.any():
+            scatter_obs = ax_main.scatter(
+                self.observations.loc[mask_obs, 'UV-beta'],
+                np.log10(self.observations.loc[mask_obs, 'E(B-V)_uv']),
+                alpha=0.7,
+                s=100,
+                label='LzLCS',
+                color='red',
+                marker='s',
+                edgecolors='black',
+                linewidth=0.5,
+                zorder=5
+            )
+
+        # Add colorbar for f_esc (simulations)
+        cbar = plt.colorbar(scatter, ax=ax_main)
+        cbar.set_label('$f_{esc}$ (%)', fontsize=12)
+
+        # Plot analytical relation: log10(E(B-V)) = -1.1 * beta - 3.3
+        beta_range = np.linspace(-3, 0.5, 100)
+        log_ebv_analytical = -1.1 * beta_range - 3.3
+        ax_main.plot(beta_range, log_ebv_analytical,
+                     'k--', linewidth=2, label='log₁₀(E(B-V)) = -1.1β - 3.3',
+                     zorder=10)
+
+        # Labels and formatting for main plot
+        ax_main.set_xlabel('UV β slope', fontsize=13)
+        ax_main.set_ylabel('log₁₀(E(B-V))', fontsize=13)
+        ax_main.set_title('UV Beta Slope vs E(B-V)',
+                          fontsize=14, fontweight='bold')
+        ax_main.grid(True, alpha=0.3)
+
+        # Create custom legend
+        from matplotlib.lines import Line2D
+        legend_elements = [
+            Line2D([0], [0], marker='o', color='w', label='SPHINX20',
+                   markerfacecolor='gray', markersize=8, alpha=0.6),
+            Line2D([0], [0], marker='s', color='w', label='LzLCS',
+                   markerfacecolor='red', markersize=10,
+                   markeredgecolor='black', markeredgewidth=0.5),
+            Line2D([0], [0], color='black', linestyle='--', linewidth=2,
+                   label='log₁₀(E(B-V)) = -1.1β - 3.3')
+        ]
+        ax_main.legend(handles=legend_elements, loc='best', fontsize=11, frameon=True)
+
+        # Side histogram for simulations with f_esc > 5% and ratio cut
+        if mask_sim.any():
+            log_ebv_high_fesc = np.log10(self.df.loc[mask_sim, 'ebmv_mean'])
+            ax_hist.hist(log_ebv_high_fesc, bins=30, orientation='horizontal',
+                         color='steelblue', alpha=0.7, edgecolor='black', linewidth=0.5)
+            ax_hist.set_xlabel('Count', fontsize=11)
+            ax_hist.set_title(f'SPHINX20\n$f_{{esc}}$ > 5%\nHα/L1500 < 1.6\n(n={mask_sim.sum()})',
+                              fontsize=10, fontweight='bold')
+            ax_hist.grid(True, alpha=0.3, axis='x')
+
+        # Remove y-axis labels from histogram (shared with main plot)
+        ax_hist.tick_params(labelleft=False)
+
+        plt.tight_layout()
+
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            print(f"Figure saved to {save_path}")
+
+        plt.show()
+
+
+    def plot_muv_fesc_comparison(self, figsize=(10, 8), save_path=None):
+        """
+        Create M_UV vs f_esc comparison plot between SPHINX20 simulations and LzLCS observations.
+        Simulations color-coded by redshift, observations shown as red squares.
+        """
+        fig, ax = plt.subplots(figsize=figsize)
+
+        print("\n" + "=" * 60)
+        print("M_UV vs f_esc COMPARISON")
+        print("=" * 60)
+
+        # ============================================================
+        # SIMULATIONS (SPHINX20)
+        # ============================================================
+        print("\nSIMULATIONS (SPHINX20):")
+
+        # Base mask for simulations
+        mask_sim = (self.df['f_esc'].notna() &
+                    self.df['cont_1500_int'].notna() &
+                    self.df['redshift'].notna())
+
+        print(f"Total galaxies with f_esc, L_UV, and redshift: {mask_sim.sum()}")
+
+
+        # Now calculate M_UV using AB magnitude system
+        self.df['M_UV'] = self.df['MAB_1500_int']
+        # Get f_esc in linear scale (percentage)
+        f_esc_sim = 10 ** self.df.loc[mask_sim, 'f_esc'] * 100
+
+        # Plot simulations color-coded by redshift
+        scatter_sim = ax.scatter(
+            self.df.loc[mask_sim, 'M_UV'],
+            f_esc_sim,
+            c=self.df.loc[mask_sim, 'redshift'],
+            cmap='viridis',
+            alpha=0.6,
+            s=50,
+            label='SPHINX20',
+            edgecolors='none'
+        )
+
+        # Add colorbar for redshift
+        cbar = plt.colorbar(scatter_sim, ax=ax)
+        cbar.set_label('Redshift', fontsize=12)
+
+        print(f"M_UV range: [{self.df.loc[mask_sim, 'M_UV'].min():.2f}, {self.df.loc[mask_sim, 'M_UV'].max():.2f}]")
+        print(f"f_esc range: [{f_esc_sim.min():.2f}, {f_esc_sim.max():.2f}] %")
+        print(
+            f"Redshift range: [{self.df.loc[mask_sim, 'redshift'].min():.2f}, {self.df.loc[mask_sim, 'redshift'].max():.2f}]")
+
+        # ============================================================
+        # OBSERVATIONS (LzLCS)
+        # ============================================================
+        print("\nOBSERVATIONS (LzLCS):")
+
+        # Base mask for observations
+        mask_obs = (self.observations['M_1500'].notna() &
+                    self.observations['f_esc(LyC)-UVfit'].notna())
+        mask_obs2 = (self.observations['M_1500'].notna() &
+                    self.observations['f_esc(LyC)-UVfit'].notna()&
+                    self.observations['f_esc(LyC)-UVfit']>0)
+        print(f"Total galaxies with M_UV and f_esc: {mask_obs.sum()}")
+
+        # Get f_esc in percentage
+        f_esc_obs = self.observations.loc[mask_obs, 'f_esc(LyC)-UVfit'] * 100
+        f_esc_obs2 = self.observations.loc[mask_obs2, 'f_esc(LyC)-UVfit'] * 100
+
+        # Plot observations as red squares
+        if mask_obs.any():
+            ax.scatter(
+                self.observations.loc[mask_obs, 'M_1500'],
+                f_esc_obs,
+                alpha=0.8,
+                s=150,
+                label='LzLCS',
+                color='red',
+                marker='s',
+                edgecolors='black',
+                linewidth=1,
+                zorder=5
+            )
+
+
+            print(
+                f"M_UV range: [{self.observations.loc[mask_obs, 'M_1500'].min():.2f}, {self.observations.loc[mask_obs, 'M_1500'].max():.2f}]")
+            print(f"f_esc range: [{f_esc_obs.min():.2f}, {f_esc_obs.max():.2f}] %")
+
+        print("=" * 60 + "\n")
+
+        # Labels and formatting
+        ax.set_xlabel('$M_{UV}$', fontsize=14)
+        ax.set_ylabel('$f_{esc}$ (%)', fontsize=14)
+        ax.set_title('UV Magnitude vs LyC Escape Fraction', fontsize=15, fontweight='bold')
+        ax.grid(True, alpha=0.3)
+
+        # Set log scale for y-axis (optional, uncomment if desired)
+        # ax.set_yscale('log')
+        # ax.set_ylabel('$f_{esc}$ (%) [log scale]', fontsize=14)
+
+        # Invert x-axis (brighter objects have more negative magnitudes)
+        ax.invert_xaxis()
+
+        # Legend
+        ax.legend(loc='best', fontsize=12, frameon=True)
+
+        plt.tight_layout()
+
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            print(f"Figure saved to {save_path}")
+
+        plt.show()
+def main():
+    """Main analysis pipeline."""
+
+    # Initialize analyser
+    analyzer = SPHINXLyCAnalyzer(data_path+'all_basic_data.csv', data_path+'flury.csv')
+
+    # Run analyses
+    # analyser.summary_statistics()
+    #analyser.save_column_names()
+    # analyser.redshift_evolution()
+    # corr_df = analyser.correlations()
+
+    # analyser.plot_overview(home_path+'sphinx_analysis/outputs/sphinx_lyc_overview.png')
+    # analyser.plot_detailed_correlations(home_path+'sphinx_analysis/outputs/sphinx_lyc_correlations.png')
+
+    # Analyze high escapers
+    high_esc, low_esc = analyzer.analyze_high_escapers(threshold=0.1)
+
+    # analyser.export_summary(home_path+'sphinx_analysis/outputs/sphinx_lyc_summary.txt')
+
+    # analyser.plot_fesc_vs_stellar_mass(save_path=home_path+'sphinx_analysis/outputs/fesc_mass.png')
+    # analyser.plot_fesc_vs_sfr()
+    # analyser.plot_fesc_vs_metallicity(save_path=home_path+'sphinx_analysis/outputs/fesc_Z.png')
+    # analyser.plot_fesc_vs_uvbeta()
+    # analyser.plot_fesc_vs_xi_ion()
+    # analyser.plot_fesc_histograms()
+    #analyzer.plot_multiparameter_comparison(save_path=home_path+'comprehensive_comparison_all_F01.png')
+    # Call the new indirect indicator plots:
+    # analyzer.plot_o32_vs_metallicity(save_path=home_path + 'o32_metallicity.png')
+    # analyzer.plot_ew_hbeta_vs_mass(save_path=home_path + 'ew_mass.png')
+    # analyzer.plot_uv_slope_vs_metallicity(save_path=home_path + 'beta_metallicity.png')
+    # analyzer.plot_ssfr_vs_mass(save_path=home_path + 'ssfr_mass.png')
+    # analyzer.plot_o32_vs_ew_hbeta(save_path=home_path + 'o32_ew_diagnostic.png')
+    # analyzer.plot_compactness_diagnostic(save_path=home_path + 'compactness.png')
+    # analyzer.plot_lya_lyc_comparison(save_path=home_path + 'lya_lyc.png')
+    #analyzer.plot_ebv_beta_relation3(save_path=home_path+'ebv_beta_relation.png')
+    #analyzer.plot_mass_sfr_relation(save_path=home_path+'mass_sfr_relation.png')
+    analyzer.plot_muv_fesc_comparison(save_path=home_path+'MUV_fesc_relation.png')
+    print("\n" + "=" * 60)
+    print("ANALYSIS COMPLETE!")
+    print("=" * 60)
+
+    def plot_2d_all_directions_all(self, x_param: str, y_param: str,
+                               color_param: Optional[str] = None,
+                               obs_threshold: float = 0.1,
+                               figsize=(10, 8),
+                               log_x=False,
+                               log_y=False,
+                               xlim=None,
+                               ylim=None,
+                               save_path=None):
+        """
+        Create 2D scatter plot where each direction is treated as a separate point.
+        Instead of averaging over directions, this plots all 10 directions as individual points.
+
+        If a parameter has directions (e.g., f_esc_dir_0 to f_esc_dir_9), each direction
+        becomes one point. If a parameter has no directions (e.g., stellar_mass), it's
+        replicated 10 times to match the directional parameter.
+
+        Observations are overlaid when available. If color_param is provided, observation
+        markers are filled when color_param >= obs_threshold, and hollow (empty) otherwise.
+
+        Parameters:
+        -----------
+        x_param : str
+            Parameter for x-axis
+        y_param : str
+            Parameter for y-axis
+        color_param : str, optional
+            Parameter for color coding of simulations. For observations, drives the
+            filled/hollow threshold split instead.
+        obs_threshold : float, optional
+            Threshold applied to color_param for observations: markers with
+            color_param >= obs_threshold are filled; those below are hollow.
+            Default is 0.1.
+        figsize : tuple
+            Figure size
+        log_x, log_y : bool
+            Use log scale for axes
+        xlim, ylim : tuple, optional
+            Axis limits
+        save_path : str, optional
+            Path to save figure
+        """
+        fig, ax = plt.subplots(figsize=figsize)
+
+        print("\n" + "=" * 70)
+        if color_param:
+            print(f"{x_param} vs {y_param} (colored by {color_param}) - ALL DIRECTIONS")
+        else:
+            print(f"{x_param} vs {y_param} - ALL DIRECTIONS")
+        print("=" * 70)
+
+        # ------------------------------------------------------------------
+        # 1. Collect simulation data across all directions
+        # ------------------------------------------------------------------
+        x_sim_all = []
+        y_sim_all = []
+        c_sim_all = []
+
+        try:
+            for direction in range(10):
+                try:
+                    x_sim_dir = self.data.get_parameter(x_param, 'sim', direction=direction)
+                    if x_sim_dir is None:
+                        x_sim_dir = self.data.get_parameter(x_param, 'sim')
+
+                    y_sim_dir = self.data.get_parameter(y_param, 'sim', direction=direction)
+                    if y_sim_dir is None:
+                        y_sim_dir = self.data.get_parameter(y_param, 'sim')
+
+                    if color_param:
+                        c_sim_dir = self.data.get_parameter(color_param, 'sim', direction=direction)
+                        if c_sim_dir is None:
+                            c_sim_dir = self.data.get_parameter(color_param, 'sim')
+                    else:
+                        c_sim_dir = None
+
+                    if x_sim_dir is not None and y_sim_dir is not None:
+                        x_sim_all.append(x_sim_dir)
+                        y_sim_all.append(y_sim_dir)
+                        if c_sim_dir is not None:
+                            c_sim_all.append(c_sim_dir)
+
+                except Exception as e:
+                    print(f"  ⚠ Warning: Could not get direction {direction}: {e}")
+                    continue
+
+            if not x_sim_all or not y_sim_all:
+                print("  ✗ Error: No valid simulation data found")
+                return
+
+            x_sim = pd.concat(x_sim_all, ignore_index=True)
+            y_sim = pd.concat(y_sim_all, ignore_index=True)
+            c_sim = pd.concat(c_sim_all, ignore_index=True) if c_sim_all else None
+
+            mask_sim = (x_sim.notna() & y_sim.notna() & (c_sim.notna() if c_sim is not None else True))
+            print(f"  • Simulation points across all directions: {mask_sim.sum()}")
+            print(f"  • Points per direction (avg): {mask_sim.sum() / 10:.1f}")
+
+            # ------------------------------------------------------------------
+            # 2. Plot simulations
+            # ------------------------------------------------------------------
+            if color_param and c_sim is not None:
+                scatter_sim = ax.scatter(
+                    x_sim[mask_sim], y_sim[mask_sim],
+                    c=c_sim[mask_sim],
+                    cmap='viridis',
+                    alpha=0.5,
+                    s=30,
+                    edgecolors='none',
+                    label='SPHINX20',
+                    zorder=2
+                )
+                cbar = plt.colorbar(scatter_sim, ax=ax)
+                cbar.set_label(color_param, fontsize=12)
+            else:
+                ax.scatter(
+                    x_sim[mask_sim], y_sim[mask_sim],
+                    alpha=0.5,
+                    s=30,
+                    color='steelblue',
+                    edgecolors='none',
+                    label='SPHINX20',
+                    zorder=2
+                )
+
+            # ------------------------------------------------------------------
+            # 3. Collect and plot observations (if available)
+            # ------------------------------------------------------------------
+            try:
+                _, x_obs = self.data.get_parameter(x_param, 'both')
+                _, y_obs = self.data.get_parameter(y_param, 'both')
+                _, c_obs = self.data.get_parameter(color_param, 'both') if color_param else (None, None)
+            except Exception:
+                x_obs, y_obs, c_obs = None, None, None
+
+            has_obs = (x_obs is not None and y_obs is not None
+                       and len(x_obs) > 0 and len(y_obs) > 0)
+
+            if has_obs:
+                if color_param and c_obs is not None:
+                    mask_obs_base = x_obs.notna() & y_obs.notna() & c_obs.notna()
+                    above = mask_obs_base & (c_obs >= np.log10(obs_threshold))
+                    below = mask_obs_base & (c_obs < np.log10(obs_threshold))
+
+                    n_above = above.sum()
+                    n_below = below.sum()
+                    print(f"  • Observations above threshold ({obs_threshold}): {n_above}")
+                    print(f"  • Observations below threshold ({obs_threshold}): {n_below}")
+
+                    obs_kwargs = dict(s=150, marker='s', linewidth=1.2, zorder=5)
+
+                    # Filled markers: color_param >= threshold
+                    if n_above > 0:
+                        ax.scatter(
+                            x_obs[above], y_obs[above],
+                            c=c_obs[above],
+                            cmap='Reds',
+                            alpha=0.9,
+                            edgecolors='black',
+                            label=f'LzLCS (≥{obs_threshold})',
+                            **obs_kwargs
+                        )
+
+                    # Hollow markers: color_param < threshold
+                    if n_below > 0:
+                        ax.scatter(
+                            x_obs[below], y_obs[below],
+
+                            cmap='Reds',
+                            alpha=0.9,
+                            edgecolors='black',
+                            facecolors='none',
+                            label=f'LzLCS (<{obs_threshold})',
+                            **obs_kwargs
+                        )
+
+                else:
+                    # No color_param: plot all observations in plain style
+                    mask_obs_base = x_obs.notna() & y_obs.notna()
+                    print(f"  • Observations: {mask_obs_base.sum()} points")
+                    ax.scatter(
+                        x_obs[mask_obs_base], y_obs[mask_obs_base],
+                        alpha=0.9,
+                        s=150,
+                        color='red',
+                        marker='s',
+                        edgecolors='black',
+                        linewidth=1.2,
+                        label='LzLCS',
+                        zorder=5
+                    )
+            else:
+                print("  • Observations: not available for this parameter combination")
+
+            # ------------------------------------------------------------------
+            # 4. Formatting
+            # ------------------------------------------------------------------
+            ax.set_xlabel(x_param, fontsize=14)
+            ax.set_ylabel(y_param, fontsize=14)
+
+            title = f'{x_param} vs {y_param} — All Directions'
+            if color_param:
+                title += f' (colored by {color_param})'
+            ax.set_title(title, fontsize=15, fontweight='bold')
+
+            ax.grid(True, alpha=0.3)
+            ax.legend(loc='best', fontsize=11, frameon=True)
+
+            if log_x:
+                ax.set_xscale('log')
+            if log_y:
+                ax.set_yscale('log')
+
+            if xlim:
+                ax.set_xlim(xlim)
+            if ylim:
+                ax.set_ylim(ylim)
+
+            plt.tight_layout()
+
+            if save_path:
+                plt.savefig(save_path, dpi=300, bbox_inches='tight')
+                print(f"  ✓ Figure saved to {save_path}")
+
+            plt.show()
+
+        except Exception as e:
+            print(f"  ✗ Error: {e}")
+            import traceback
+            traceback.print_exc()
+            return
+
+        print("=" * 70 + "\n")
+if __name__ == "__main__":
+    main()

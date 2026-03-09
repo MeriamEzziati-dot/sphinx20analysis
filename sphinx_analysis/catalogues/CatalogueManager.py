@@ -111,7 +111,7 @@ class CatalogueManager:
                 if fesc_col in self.df.columns:
                     # log10(f_esc) for this direction
                     self.df[f'log10(f_esc)_dir_{i}'] = np.log10(self.df[fesc_col])
-            
+
             # Calculate mean and std for log10(f_esc)
             log_fesc_cols = [f'log10(f_esc)_dir_{i}' for i in range(10) if f'log10(f_esc)_dir_{i}' in self.df.columns]
             if log_fesc_cols:
@@ -125,7 +125,7 @@ class CatalogueManager:
         if 'gas_density_3727' in self.df.columns:
             # Get hydrogen density (not directional) - already in log10
             n_H = self.df['gas_density_3727']
-            
+
             # Calculate zeta_ISM for each direction (since E(B-V) is directional)
             ebv_cols = [col for col in self.df.columns if col.startswith('ebmv_dir_') and col[-1].isdigit()]
             if ebv_cols:
@@ -136,20 +136,57 @@ class CatalogueManager:
                         # Result: zeta_ISM in cm^-3
                         self.df[f'zeta_ISM_dir_{i}'] = self.df[ebv_col] * (10 ** n_H)
                         self.df[f'log10(zeta_ISM)_dir_{i}'] = np.log10(self.df[f'zeta_ISM_dir_{i}'])
-                
+
                 # Also calculate mean and std across directions
                 zeta_cols = [f'zeta_ISM_dir_{i}' for i in range(10) if f'zeta_ISM_dir_{i}' in self.df.columns]
-                log_zeta_cols = [f'log10(zeta_ISM)_dir_{i}' for i in range(10) if f'log10(zeta_ISM)_dir_{i}' in self.df.columns]
-                
+                log_zeta_cols = [f'log10(zeta_ISM)_dir_{i}' for i in range(10) if
+                                 f'log10(zeta_ISM)_dir_{i}' in self.df.columns]
+
                 if zeta_cols:
                     self.df['zeta_ISM_mean'] = self.df[zeta_cols].mean(axis=1)
                     self.df['zeta_ISM_std'] = self.df[zeta_cols].std(axis=1)
                     self.df['zeta_ISM'] = self.df['zeta_ISM_mean']  # Alias
-                
+
                 if log_zeta_cols:
                     self.df['log10(zeta_ISM)_mean'] = self.df[log_zeta_cols].mean(axis=1)
                     self.df['log10(zeta_ISM)_std'] = self.df[log_zeta_cols].std(axis=1)
                     self.df['log10(zeta_ISM)'] = self.df['log10(zeta_ISM)_mean']  # Alias
+
+        # ── O3Hb = log10(OIII5007 / Hbeta) – directional ─────────────────────
+        LOG_CLIP = 1e-30
+        if 'OIII_5006.84_int' in self.df.columns and 'HI_4861.32_int' in self.df.columns:
+            for i in range(10):
+                oiii_col = f'OIII_5006.84_dir_{i}'
+                hb_col = f'HI_4861.32_dir_{i}'
+                if oiii_col in self.df.columns and hb_col in self.df.columns:
+                    oiii = np.where(self.df[oiii_col] > 0, self.df[oiii_col], LOG_CLIP)
+                    hb = np.where(self.df[hb_col] > 0, self.df[hb_col], LOG_CLIP)
+                    self.df[f'O3Hb_dir_{i}'] = np.log10(oiii) - np.log10(hb)
+            o3hb_cols = [f'O3Hb_dir_{i}' for i in range(10) if f'O3Hb_dir_{i}' in self.df.columns]
+            if o3hb_cols:
+                self.df['O3Hb'] = self.df[o3hb_cols].mean(axis=1)
+
+        # ── S2_deficit = log10((SII6716+SII6731) / Ha) – intrinsic only ───────
+        if 'S__2_6716.44A_int' in self.df.columns and 'HI_6562.8_int' in self.df.columns:
+            sii = self.df['S__2_6716.44A_int'] + self.df['S__2_6730.82A_int']
+            ha = self.df['HI_6562.8_int']
+            sii = np.where(sii > 0, sii, LOG_CLIP)
+            ha = np.where(ha > 0, ha, LOG_CLIP)
+            self.df['S2_deficit'] = np.log10(sii) - np.log10(ha)
+
+        # ── EW_O3 = OIII5007 / cont_5008 – directional ────────────────────────
+        for i in range(10):
+            oiii_col = f'OIII_5006.84_dir_{i}'
+            cont_col = f'cont_5008_dir_{i}'
+            if oiii_col in self.df.columns and cont_col in self.df.columns:
+                cont = np.where(self.df[cont_col] > 0, self.df[cont_col], np.nan)
+                self.df[f'EW_O3_dir_{i}'] = self.df[oiii_col] / cont
+        ew_o3_cols = [f'EW_O3_dir_{i}' for i in range(10) if f'EW_O3_dir_{i}' in self.df.columns]
+        if ew_o3_cols:
+            self.df['EW_O3'] = self.df[ew_o3_cols].mean(axis=1)
+        elif 'OIII_5006.84_int' in self.df.columns and 'cont_5008_int' in self.df.columns:
+            cont = np.where(self.df['cont_5008_int'] > 0, self.df['cont_5008_int'], np.nan)
+            self.df['EW_O3'] = self.df['OIII_5006.84_int'] / cont
 
     def get_parameter(self, param_name: str, dataset: str = 'both',
                       direction: Optional[Union[int, str]] = None) -> Union[Tuple[pd.Series, pd.Series], pd.Series]:
@@ -354,20 +391,18 @@ class CatalogueManager:
 
         elif param_name == "E(B-V)":
             if direction is None or direction == 'mean':
-                sim_data = np.log10(self.df['ebmv_dir_mean'])
+                sim_data = (self.df['ebmv_dir_mean'])
             elif direction == 'std':
-                sim_data = np.log10(self.df['ebmv_dir_std'])
+                sim_data = (self.df['ebmv_dir_std'])
             elif isinstance(direction, int) and 0 <= direction <= 9:
-                sim_data = np.log10(self.df[f'ebmv_dir_{direction}'])
-            obs_data = None
+                sim_data = (self.df[f'ebmv_dir_{direction}'])
+            obs_data = ((self.observations['E(B-V)_uv']))
 
         elif param_name == "E(B-V)_nebular":
             sim_data = None
             obs_data = self.observations['E(B-V)_nebular']
 
-        elif param_name == "E(B-V)_uv":
-            sim_data = None
-            obs_data = self.observations['E(B-V)_uv']
+
 
         elif param_name == "zeta_ISM":
             # zeta_ISM returns log10 by default
@@ -519,7 +554,7 @@ class CatalogueManager:
         # ============================================================
 
         elif param_name == "O32":
-            sim_data = self.df['O32']
+            sim_data = (self.df['O32'])
             oiii = self.observations['O3_5007A']
             oii = self.observations['O2_3726A'] + self.observations['O2_3729A']
             obs_data = np.log10(oiii / oii)
@@ -560,6 +595,27 @@ class CatalogueManager:
         elif param_name == "f_LyC":
             sim_data = None
             obs_data = self.observations['f(LyC)']
+
+        elif param_name == "O3Hb":
+            if direction is None or direction == 'mean':
+                sim_data = self.df.get('O3Hb', None)
+            elif isinstance(direction, int) and 0 <= direction <= 9:
+                sim_data = self.df.get(f'O3Hb_dir_{direction}', self.df.get('O3Hb', None))
+            obs_data = np.log10(self.observations['O3_5007A'] / self.observations['H1r_4861A'])
+
+        elif param_name == "S2_deficit":
+            sim_data = self.df.get('S2_deficit', None)
+            obs_data = np.log10(
+                (self.observations['S2_6716A'] + self.observations['S2_6731A'])
+                / self.observations['H1r_6563A']
+            )
+
+        elif param_name == "EW_O3":
+            if direction is None or direction == 'mean':
+                sim_data = self.df.get('EW_O3', None)
+            elif isinstance(direction, int) and 0 <= direction <= 9:
+                sim_data = self.df.get(f'EW_O3_dir_{direction}', self.df.get('EW_O3', None))
+            obs_data = self.observations.get('EW(O3_5007)', None)
 
         else:
             raise ValueError(
